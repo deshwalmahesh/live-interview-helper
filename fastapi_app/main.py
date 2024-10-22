@@ -88,6 +88,6 @@ async def get_answers(request: TranscriptionRequest):
     full_transcription = " ".join(request.transcription_history)
 
     answer = f"Received transcription with {len(request.transcription_history)} entries. " \
-             f"The full transcription is: {full_transcription[:100]}..."
+             f"The full transcription is: {full_transcription}..."
     
     return {"answers": answer}
