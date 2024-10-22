@@ -25,9 +25,8 @@ closePopupButton.onclick = closePopup;
 getAnswersButton.onclick = getAnswers;
 
 function showLastWindow() {
-    if (transcriptionHistory.length > 0) {
-        const lastWindow = transcriptionHistory[transcriptionHistory.length - 1];
-        popupContent.innerHTML = lastWindow.join('<br>');
+    if (transcriptionHistory.length > 0 && transcriptionHistory[0].length > 0) {
+        popupContent.innerHTML = transcriptionHistory[0].join('<br>');
         popup.style.display = 'block';
     } else {
         popupContent.innerHTML = 'No transcription available.';
@@ -137,28 +136,21 @@ function startRecording() {
             const newText = `${timeString}: ${event.data}`;
             transcriptionDiv.innerHTML += newText + '<br>';
             transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
-
-            currentChunk.push(event.data);
+    
+            currentChunk.push(newText);
             
             const currentTime = Date.now();
             const timeWindow = timeWindowInput.value * 1000; // Convert to milliseconds
             
-            if (currentTime - lastTranscriptionTime >= timeWindow) {
-                if (currentChunk.length === 0) {
-                    transcriptionHistory.push(['SILENCE_NO_TEXT_EMPTY']);
-                } else {
-                    transcriptionHistory.push(currentChunk);
-                }
-                currentChunk = [];
-                lastTranscriptionTime = currentTime;
-                
-                // Keep only the last 4 chunks (2 minutes if time window is 30 seconds)
-                if (transcriptionHistory.length > 4) {
-                    transcriptionHistory.shift();
-                }
-                
-                console.log('Current transcription history:', transcriptionHistory);
+            // Remove old entries from currentChunk
+            while (currentChunk.length > 0 && currentTime - new Date(currentChunk[0].split(': ')[0]).getTime() > timeWindow) {
+                currentChunk.shift();
             }
+            
+            // Update transcription history
+            transcriptionHistory = [currentChunk];
+            
+            console.log('Current transcription history:', transcriptionHistory);
         }
     };
 
