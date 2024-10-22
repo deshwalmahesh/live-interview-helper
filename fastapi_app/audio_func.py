@@ -11,10 +11,6 @@ import numpy as np
 LENGTH_IN_SEC: int = 5 #  Maximum time duration at which the audio data will pe processed together at once. Think of it as sliding window
 SAMPLE_RATE = 16000 # Per second Sampling Rate
 
-# Queues
-audio_queue = asyncio.Queue()
-length_queue = asyncio.Queue(maxsize=LENGTH_IN_SEC)
-
 # Whisper settings
 LANGUAGE = "english"
 TRANSCRIPTION_MODEL_NAME = "openai/whisper-large-v3-turbo"
@@ -41,10 +37,27 @@ transcription_pipeline = pipeline(
     model=transcription_model,
     tokenizer=processor.tokenizer,
     feature_extractor=processor.feature_extractor,
-    chunk_length_s = LENGTH_IN_SEC,
-    batch_size = 1,  # batch size for inference - set based on your device
+    chunk_length_s = min(LENGTH_IN_SEC, 30), # it uses sliding window and other protocol
     torch_dtype=torch_dtype,
     device=device,
 )
 
 print(f"{TRANSCRIPTION_MODEL_NAME} loaded")
+
+async def transcribe_audio(audio_data):
+    audio_data_array = (np.frombuffer(audio_data, np.int16) / 32768.0).astype(np.float32)
+    # np.frombuffer(audio_data_to_process, np.int16).astype(np.float32) / 255.0 Which one is the right way?
+
+    result = await asyncio.to_thread(
+        transcription_pipeline,
+        {"array": audio_data_array, "sampling_rate": SAMPLE_RATE},
+        return_timestamps=True,
+        generate_kwargs={"language": "english", "return_timestamps": True, "max_new_tokens": 128})
+    
+    text = result["text"]
+    
+    # # remove anything from the text which is between () or [] --> these are non-verbal background noises/music/etc.
+    # text = re.sub(r"\[.*\]", "", text) 
+    # text = re.sub(r"\(.*\)", "", text)
+
+    return text
