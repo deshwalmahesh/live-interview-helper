@@ -3,40 +3,20 @@ let audioContext;
 let processor;
 let chunksSent = 0;
 let transcriptionHistory = [];
-let currentChunk = [];
-let lastTranscriptionTime = Date.now();
 
 const startButton = document.getElementById('startButton');
 const stopButton = document.getElementById('stopButton');
 const statusDiv = document.getElementById('status');
 const errorDiv = document.getElementById('error');
 const transcriptionDiv = document.getElementById('transcription');
-const timeWindowInput = document.getElementById('timeWindow');
 const getAnswersButton = document.getElementById('getAnswersButton');
 const answersPanel = document.getElementById('answersPanel');
+const saveButton = document.getElementById('saveButton');
 
-const showLastWindowButton = document.getElementById('showLastWindowButton');
-const popup = document.getElementById('popup');
-const popupContent = document.getElementById('popupContent');
-const closePopupButton = document.querySelector('.close-popup');
 
-showLastWindowButton.onclick = showLastWindow;
-closePopupButton.onclick = closePopup;
 getAnswersButton.onclick = getAnswers;
 
-function showLastWindow() {
-    if (transcriptionHistory.length > 0 && transcriptionHistory[0].length > 0) {
-        popupContent.innerHTML = transcriptionHistory[0].join('<br>');
-        popup.style.display = 'block';
-    } else {
-        popupContent.innerHTML = 'No transcription available.';
-        popup.style.display = 'block';
-    }
-}
-
-function closePopup() {
-    popup.style.display = 'none';
-}
+saveButton.addEventListener('click', saveTranscriptionHistory);
 
 async function getAnswers() {
     if (transcriptionHistory.length === 0) {
@@ -44,14 +24,16 @@ async function getAnswers() {
         return;
     }
 
-    const lastWindow = transcriptionHistory[transcriptionHistory.length - 1];
     try {
+        // Clear previous answers
+        answersPanel.innerHTML = 'Fetching answers...';
+
         const response = await fetch('http://localhost:8000/get_answers', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ transcription: lastWindow }),
+            body: JSON.stringify({ transcription_history: transcriptionHistory }),
         });
 
         if (!response.ok) {
@@ -59,7 +41,12 @@ async function getAnswers() {
         }
 
         const data = await response.json();
+        
+        // Clear the loading message and display new answers
         answersPanel.innerHTML = `<h3>Answers:</h3><p>${data.answers}</p>`;
+
+        // Scroll to the top of the answers panel
+        answersPanel.scrollTop = 0;
     } catch (error) {
         console.error('Error:', error);
         answersPanel.innerHTML = `Error getting answers: ${error.message}`;
@@ -80,10 +67,6 @@ function showError(message) {
 function startRecording() {
     chunksSent = 0;
     transcriptionHistory = [];
-    currentChunk = [];
-    lastTranscriptionTime = Date.now();
-
-    showLastWindowButton.disabled = false;
     
     websocket = new WebSocket('ws://localhost:8000/TranscribeStreaming');
     
@@ -131,25 +114,15 @@ function startRecording() {
         if (event.data === "Transcription complete.") {
             updateStatus('Transcription complete.');
         } else {
-            const now = new Date();
-            const timeString = now.toLocaleTimeString();
+            const now = Date.now();
+            const timeString = new Date(now).toLocaleTimeString();
             const newText = `${timeString}: ${event.data}`;
             transcriptionDiv.innerHTML += newText + '<br>';
             transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
     
-            currentChunk.push(newText);
-            
-            const currentTime = Date.now();
-            const timeWindow = timeWindowInput.value * 1000; // Convert to milliseconds
-            
-            // Remove old entries from currentChunk
-            while (currentChunk.length > 0 && currentTime - new Date(currentChunk[0].split(': ')[0]).getTime() > timeWindow) {
-                currentChunk.shift();
-            }
-            
             // Update transcription history
-            transcriptionHistory = [currentChunk];
-            
+            transcriptionHistory.push(newText);
+    
             console.log('Current transcription history:', transcriptionHistory);
         }
     };
@@ -178,4 +151,24 @@ function stopRecording() {
     websocket.send('submit_response');
     startButton.disabled = false;
     stopButton.disabled = true;
+}
+
+
+function saveTranscriptionHistory() {
+    if (transcriptionHistory.length === 0) {
+        alert('No transcription data available to save.');
+        return;
+    }
+
+    const data = JSON.stringify(transcriptionHistory, null, 2);
+    const blob = new Blob([data], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'transcription_history.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }

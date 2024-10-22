@@ -1,5 +1,8 @@
 import asyncio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+from typing import List
 import logging
 import numpy as np
 from audio_func import transcribe_audio, SAMPLE_RATE, LENGTH_IN_SEC
@@ -7,6 +10,18 @@ from audio_func import transcribe_audio, SAMPLE_RATE, LENGTH_IN_SEC
 CHUNK_SIZE = SAMPLE_RATE * LENGTH_IN_SEC
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
+
+class TranscriptionRequest(BaseModel):
+    transcription_history: List[str]
+
 
 async def process_audio_chunks(queue, websocket):
     try:
@@ -65,3 +80,14 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.close()
         except RuntimeError:
             logging.info("WebSocket already closed")
+
+@app.post("/get_answers")
+async def get_answers(request: TranscriptionRequest):
+
+    # Dummy Answers
+    full_transcription = " ".join(request.transcription_history)
+
+    answer = f"Received transcription with {len(request.transcription_history)} entries. " \
+             f"The full transcription is: {full_transcription[:100]}..."
+    
+    return {"answers": answer}

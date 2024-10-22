@@ -5,18 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real-time Audio Transcription</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">  <!-- Our custom CSS File -->
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <h1>Audio Transcription</h1>
     <div class="control-panel">
         <button id="startButton">Start Recording</button>
         <button id="stopButton" disabled>Stop Recording</button>
-        <button id="showLastWindowButton">Show Last Window</button>
-        <div>
-            <label for="timeWindow">Time Window (seconds):</label>
-            <input type="number" id="timeWindow" min="10" max="180" value="30">
-        </div>
+        <button id="saveButton">Download Transcription</button>
         <div id="status"></div>
         <div id="error"></div>
     </div>
@@ -26,11 +22,6 @@
             <button id="getAnswersButton">Get Answers</button>
             <div id="answersPanel"></div>
         </div>
-    </div>
-
-    <div id="popup" class="popup">
-        <div id="popupContent" class="popup-content"></div>
-        <button class="close-popup">Close</button>
     </div>
 
     <script src="script.js"></script>
