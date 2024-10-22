@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Audio Transcription</title>
+    <style>
+        #status, #error { font-weight: bold; }
+        #error { color: red; }
+        #transcription { margin-top: 20px; border: 1px solid #ccc; padding: 10px; min-height: 100px; }
+    </style>
+</head>
+<body>
+    <h1>Real-time Audio Transcription</h1>
+    <button id="startButton">Start Recording</button>
+    <button id="stopButton" disabled>Stop Recording</button>
+    <div id="status"></div>
+    <div id="error"></div>
+    <div id="transcription"></div>
+
+    <script>
+        let websocket;
+        let audioContext;
+        let processor;
+        let chunksSent = 0;
+
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const statusDiv = document.getElementById('status');
+        const errorDiv = document.getElementById('error');
+        const transcriptionDiv = document.getElementById('transcription');
+
+        startButton.onclick = startRecording;
+        stopButton.onclick = stopRecording;
+
+        function updateStatus(message) {
+            statusDiv.textContent = message;
+        }
+
+        function showError(message) {
+            errorDiv.textContent = message;
+        }
+
+        function startRecording() {
+            chunksSent = 0;
+            websocket = new WebSocket('ws://localhost:8000/TranscribeStreaming');
+            
+            websocket.onopen = () => {
+                updateStatus('WebSocket connection established. Accessing microphone...');
+                navigator.mediaDevices.getUserMedia({ audio: true })
+                    .then(stream => {
+                        updateStatus('Microphone accessed. Recording started.');
+                        audioContext = new AudioContext();
+                        const source = audioContext.createMediaStreamSource(stream);
+                        processor = audioContext.createScriptProcessor(16384, 1, 1);  // Buffer size must be a power of 2
+
+                        source.connect(processor);
+                        processor.connect(audioContext.destination);
+
+                        let sampleRate = audioContext.sampleRate;
+                        let resampleRatio = 16000 / sampleRate;
+
+                        processor.onaudioprocess = function(e) {
+                            let inputData = e.inputBuffer.getChannelData(0);
+                            let resampledBuffer = new Float32Array(Math.round(inputData.length * resampleRatio));
+                            
+                            for (let i = 0; i < resampledBuffer.length; i++) {
+                                resampledBuffer[i] = inputData[Math.floor(i / resampleRatio)];
+                            }
+
+                            let int16Array = new Int16Array(resampledBuffer.length);
+                            for (let i = 0; i < resampledBuffer.length; i++) {
+                                int16Array[i] = Math.max(-32768, Math.min(32767, Math.round(resampledBuffer[i] * 32767)));
+                            }
+
+                            websocket.send(int16Array.buffer);
+                            chunksSent++;
+                            updateStatus(`Recording... (${chunksSent} chunks sent)`);
+                        };
+                    })
+                    .catch(err => {
+                        showError('Error accessing microphone: ' + err.message);
+                        console.error('Error accessing microphone:', err);
+                    });
+            };
+
+            websocket.onmessage = event => {
+                console.log('Received message:', event.data);
+                if (event.data === "Transcription complete.") {
+                    updateStatus('Transcription complete.');
+                } else {
+                    transcriptionDiv.innerHTML += event.data + '<br>';
+                }
+            };
+
+            websocket.onerror = error => {
+                showError('WebSocket error: ' + error.message);
+                console.error('WebSocket error:', error);
+            };
+
+            websocket.onclose = () => {
+                updateStatus('WebSocket connection closed');
+            };
+
+            startButton.disabled = true;
+            stopButton.disabled = false;
+        }
+
+        function stopRecording() {
+            if (processor) {
+                processor.disconnect();
+            }
+            if (audioContext) {
+                audioContext.close();
+            }
+            updateStatus('Recording stopped. Sending final data...');
+            websocket.send('submit_response');
+            startButton.disabled = false;
+            stopButton.disabled = true;
+        }
+    </script>
+</body>
+</html>
