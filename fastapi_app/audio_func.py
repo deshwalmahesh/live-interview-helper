@@ -8,7 +8,7 @@ import numpy as np
 
 
 # Audio settings
-LENGTH_IN_SEC: int = 5 #  Maximum time duration at which the audio data will pe processed together at once. Think of it as sliding window
+LENGTH_IN_SEC: int = 10 #  Maximum time duration at which the audio data will pe processed together at once. Think of it as sliding window
 SAMPLE_RATE = 16000 # Per second Sampling Rate
 
 # Whisper settings
@@ -40,6 +40,7 @@ transcription_pipeline = pipeline(
     chunk_length_s = min(LENGTH_IN_SEC, 30), # it uses sliding window and other protocol
     torch_dtype=torch_dtype,
     device=device,
+    return_timestamps = True if LENGTH_IN_SEC >=30 else None
 )
 
 print(f"{TRANSCRIPTION_MODEL_NAME} loaded")
@@ -52,7 +53,7 @@ async def transcribe_audio(audio_data):
         transcription_pipeline,
         {"array": audio_data_array, "sampling_rate": SAMPLE_RATE},
         return_timestamps=True,
-        generate_kwargs={"language": "english", "return_timestamps": True, "max_new_tokens": 128})
+        generate_kwargs={"language": "english", "max_new_tokens": 128})
     
     text = result["text"]
     

@@ -4,31 +4,156 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real-time Audio Transcription</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
     <style>
-        #status, #error { font-weight: bold; }
-        #error { color: red; }
-        #transcription { margin-top: 20px; border: 1px solid #ccc; padding: 10px; min-height: 100px; }
+        body {
+            font-family: 'Roboto', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .control-panel {
+            background-color: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+        #status, #error {
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        #error {
+            color: #e74c3c;
+        }
+        #transcription {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            height: 300px;
+            overflow-y: auto;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #7f8c8d;
+        }
+        input[type="number"] {
+            width: 60px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .popup {
+            display: none;
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            max-width: 80%;
+            max-height: 80%;
+            overflow-y: auto;
+        }
+        .popup-content {
+            margin-bottom: 20px;
+        }
+        .close-popup {
+            display: block;
+            margin: 0 auto;
+        }
     </style>
 </head>
 <body>
     <h1>Real-time Audio Transcription</h1>
-    <button id="startButton">Start Recording</button>
-    <button id="stopButton" disabled>Stop Recording</button>
-    <div id="status"></div>
-    <div id="error"></div>
+    <div class="control-panel">
+        <button id="startButton">Start Recording</button>
+        <button id="stopButton" disabled>Stop Recording</button>
+        <button id="showLastWindowButton">Show Last Window</button>
+        <div>
+            <label for="timeWindow">Time Window (seconds):</label>
+            <input type="number" id="timeWindow" min="30" max="120" value="30">
+        </div>
+        <div id="status"></div>
+        <div id="error"></div>
+    </div>
     <div id="transcription"></div>
+
+    <div id="popup" class="popup">
+        <div id="popupContent" class="popup-content"></div>
+        <button class="close-popup">Close</button>
+    </div>
 
     <script>
         let websocket;
         let audioContext;
         let processor;
         let chunksSent = 0;
+        let transcriptionHistory = [];
+        let currentChunk = [];
+        let lastTranscriptionTime = Date.now();
 
         const startButton = document.getElementById('startButton');
         const stopButton = document.getElementById('stopButton');
         const statusDiv = document.getElementById('status');
         const errorDiv = document.getElementById('error');
         const transcriptionDiv = document.getElementById('transcription');
+        const timeWindowInput = document.getElementById('timeWindow');
+
+        const showLastWindowButton = document.getElementById('showLastWindowButton');
+        const popup = document.getElementById('popup');
+        const popupContent = document.getElementById('popupContent');
+        const closePopupButton = document.querySelector('.close-popup');
+
+        showLastWindowButton.onclick = showLastWindow;
+        closePopupButton.onclick = closePopup;
+
+        function showLastWindow() {
+            if (transcriptionHistory.length > 0) {
+                const lastWindow = transcriptionHistory[transcriptionHistory.length - 1];
+                popupContent.innerHTML = lastWindow.join('<br>');
+                popup.style.display = 'block';
+            } else {
+                popupContent.innerHTML = 'No transcription available.';
+                popup.style.display = 'block';
+            }
+        }
+
+        function closePopup() {
+            popup.style.display = 'none';
+        }
+
 
         startButton.onclick = startRecording;
         stopButton.onclick = stopRecording;
@@ -43,6 +168,12 @@
 
         function startRecording() {
             chunksSent = 0;
+            transcriptionHistory = [];
+            currentChunk = [];
+            lastTranscriptionTime = Date.now();
+
+            showLastWindowButton.disabled = false;
+            
             websocket = new WebSocket('ws://localhost:8000/TranscribeStreaming');
             
             websocket.onopen = () => {
@@ -52,7 +183,7 @@
                         updateStatus('Microphone accessed. Recording started.');
                         audioContext = new AudioContext();
                         const source = audioContext.createMediaStreamSource(stream);
-                        processor = audioContext.createScriptProcessor(16384, 1, 1);  // Buffer size must be a power of 2
+                        processor = audioContext.createScriptProcessor(16384, 1, 1);
 
                         source.connect(processor);
                         processor.connect(audioContext.destination);
@@ -89,7 +220,33 @@
                 if (event.data === "Transcription complete.") {
                     updateStatus('Transcription complete.');
                 } else {
-                    transcriptionDiv.innerHTML += event.data + '<br>';
+                    const now = new Date();
+                    const timeString = now.toLocaleTimeString();
+                    const newText = `${timeString}: ${event.data}`;
+                    transcriptionDiv.innerHTML += newText + '<br>';
+                    transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
+
+                    currentChunk.push(event.data);
+                    
+                    const currentTime = Date.now();
+                    const timeWindow = timeWindowInput.value * 1000; // Convert to milliseconds
+                    
+                    if (currentTime - lastTranscriptionTime >= timeWindow) {
+                        if (currentChunk.length === 0) {
+                            transcriptionHistory.push(['SILENCE_NO_TEXT_EMPTY']);
+                        } else {
+                            transcriptionHistory.push(currentChunk);
+                        }
+                        currentChunk = [];
+                        lastTranscriptionTime = currentTime;
+                        
+                        // Keep only the last 4 chunks (2 minutes if time window is 30 seconds)
+                        if (transcriptionHistory.length > 4) {
+                            transcriptionHistory.shift();
+                        }
+                        
+                        console.log('Current transcription history:', transcriptionHistory);
+                    }
                 }
             };
 
