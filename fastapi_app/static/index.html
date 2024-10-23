@@ -216,36 +216,65 @@
             transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
         }
 
+        let audioContext;
+        let scriptNode;
+
         async function startRecording() {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const source = audioContext.createMediaStreamSource(stream);
+            
+            scriptNode = audioContext.createScriptProcessor(1024, 1, 1);
+            source.connect(scriptNode);
+            scriptNode.connect(audioContext.destination);
+            
+            scriptNode.onaudioprocess = function(audioProcessingEvent) {
+                if (audioSocket && audioSocket.readyState === WebSocket.OPEN) {
+                    const audioData = audioProcessingEvent.inputBuffer.getChannelData(0);
+                    const dataArray = new Float32Array(audioData);
+                    audioSocket.send(dataArray.buffer);
+                }
+            };
+        }
 
-        mediaRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-                audioChunks.push(event.data);
+        function stopRecording() {
+            if (scriptNode) {
+                scriptNode.disconnect();
+                scriptNode = null;
             }
-        };
-
-        mediaRecorder.onstop = () => {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            audioChunks = [];
-            sendAudioChunk(audioBlob);
-        };
-
-        mediaRecorder.start(1000); // Capture 1 second of audio at a time
-    }
-
-    startBtn.addEventListener('click', async () => {
-        const endpoint = isClientMode ? 
-            (isResuming ? '/resume-client' : '/start-client') : 
-            (isResuming ? '/resume' : '/start');
-        const response = await fetch(endpoint, { method: 'POST' });
-        if (response.ok) {
-            connectWebSocket();
-            if (isClientMode) {
-                connectAudioWebSocket();
-                startRecording();
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
             }
+        }
+
+        
+        function connectAudioWebSocket() {
+            audioSocket = new WebSocket('ws://' + window.location.host + '/audio-stream');
+            audioSocket.binaryType = 'arraybuffer';
+            audioSocket.onopen = function(event) {
+                console.log("Audio WebSocket connection opened");
+            };
+            audioSocket.onclose = function(event) {
+                console.log("Audio WebSocket connection closed");
+            };
+            audioSocket.onerror = function(error) {
+                console.error("Audio WebSocket error:", error);
+            };
+        }
+
+
+        startBtn.addEventListener('click', async () => {
+            const endpoint = isClientMode ? 
+                (isResuming ? '/resume-client' : '/start-client') : 
+                (isResuming ? '/resume' : '/start');
+            const response = await fetch(endpoint, { method: 'POST' });
+            if (response.ok) {
+                connectWebSocket();
+                if (isClientMode) {
+                    connectAudioWebSocket();
+                    await startRecording();
+                }
             startBtn.disabled = true;
             stopBtn.disabled = false;
             if (!isResuming) {
@@ -269,9 +298,7 @@
                     if (audioSocket) {
                         audioSocket.close();
                     }
-                    if (mediaRecorder) {
-                        mediaRecorder.stop();
-                    }
+                    stopRecording();
                 }
                 startBtn.disabled = false;
                 stopBtn.disabled = true;
