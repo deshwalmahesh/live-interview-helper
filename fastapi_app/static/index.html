@@ -216,37 +216,92 @@
             transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
         }
 
-        let audioContext;
-        let scriptNode;
+                
+    function startRecording() {
+        chunksSent = 0;
+        transcriptionHistory = [];
+        
+        websocket = new WebSocket('ws://localhost:8000/audio-stream');
+        
+        websocket.onopen = () => {
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    audioContext = new AudioContext();
+                    const source = audioContext.createMediaStreamSource(stream);
+                    processor = audioContext.createScriptProcessor(16384, 1, 1);
 
-        async function startRecording() {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const source = audioContext.createMediaStreamSource(stream);
-            
-            scriptNode = audioContext.createScriptProcessor(1024, 1, 1);
-            source.connect(scriptNode);
-            scriptNode.connect(audioContext.destination);
-            
-            scriptNode.onaudioprocess = function(audioProcessingEvent) {
-                if (audioSocket && audioSocket.readyState === WebSocket.OPEN) {
-                    const audioData = audioProcessingEvent.inputBuffer.getChannelData(0);
-                    const dataArray = new Float32Array(audioData);
-                    audioSocket.send(dataArray.buffer);
-                }
-            };
-        }
+                    source.connect(processor);
+                    processor.connect(audioContext.destination);
 
-        function stopRecording() {
-            if (scriptNode) {
-                scriptNode.disconnect();
-                scriptNode = null;
+                    let sampleRate = audioContext.sampleRate;
+                    let resampleRatio = 16000 / sampleRate;
+
+                    processor.onaudioprocess = function(e) {
+                        let inputData = e.inputBuffer.getChannelData(0);
+                        let resampledBuffer = new Float32Array(Math.round(inputData.length * resampleRatio));
+                        
+                        for (let i = 0; i < resampledBuffer.length; i++) {
+                            resampledBuffer[i] = inputData[Math.floor(i / resampleRatio)];
+                        }
+
+                        let int16Array = new Int16Array(resampledBuffer.length);
+                        for (let i = 0; i < resampledBuffer.length; i++) {
+                            int16Array[i] = Math.max(-32768, Math.min(32767, Math.round(resampledBuffer[i] * 32767)));
+                        }
+
+                        websocket.send(int16Array.buffer);
+                        chunksSent++;
+                    };
+                })
+                .catch(err => {
+                    showError('Error accessing microphone: ' + err.message);
+                    console.error('Error accessing microphone:', err);
+                });
+        };
+
+        websocket.onmessage = event => {
+            console.log('Received message:', event.data);
+            if (event.data === "Transcription complete.") {
+            } else {
+                const now = Date.now();
+                const timeString = new Date(now).toLocaleTimeString();
+                const newText = `${timeString}: ${event.data}`;
+                transcriptionDiv.innerHTML += newText + '<br>';
+                transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
+        
+                // Update transcription history
+                transcriptionHistory.push(newText);
+        
+                console.log('Current transcription history:', transcriptionHistory);
             }
-            if (audioContext) {
-                audioContext.close();
-                audioContext = null;
-            }
+        };
+
+        websocket.onerror = error => {
+            showError('WebSocket error: ' + error.message);
+            console.error('WebSocket error:', error);
+        };
+
+        websocket.onclose = () => {
+        };
+
+    }
+
+    function stopRecording() {
+        if (processor) {
+            processor.disconnect();
+            processor = null;
         }
+        if (audioContext) {
+            audioContext.close();
+            audioContext = null;
+        }
+        if (websocket && websocket.readyState === WebSocket.OPEN) {
+            websocket.close();
+        }
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+    }
+       
 
         
         function connectAudioWebSocket() {

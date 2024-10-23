@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 import asyncio
@@ -23,6 +23,7 @@ LENGTH_IN_SEC: int = 7
 NB_CHANNELS = 1
 RATE = 16000
 CHUNK = RATE
+CHUNK_SIZE = RATE * LENGTH_IN_SEC
 
 # Whisper settings
 WHISPER_LANGUAGE = "en"
@@ -169,32 +170,40 @@ async def stop_transcription():
 @app.websocket("/audio-stream")
 async def websocket_audio_stream(websocket: WebSocket):
     await websocket.accept()
+    buffer = b''
     try:
         while True:
             data = await websocket.receive_bytes()
-            await client_audio_buffer.put(data)
-    except:
-        pass
+            buffer += data
+            while len(buffer) >= CHUNK_SIZE:
+                chunk_to_process = buffer[:CHUNK_SIZE]
+                buffer = buffer[CHUNK_SIZE:]
+                await client_audio_buffer.put(chunk_to_process)
+    except WebSocketDisconnect:
+        logger.info("WebSocket disconnected")
+    except Exception as e:
+        logger.error(f"Error in websocket_audio_stream: {str(e)}")
+    finally:
+        if buffer:
+            await client_audio_buffer.put(buffer)
 
 async def client_consumer_task():
     while START.is_set():
         try:
-            if client_audio_buffer.qsize() >= LENGTH_IN_SEC:
-                audio_data_to_process = b''.join([await client_audio_buffer.get() for _ in range(LENGTH_IN_SEC)])
-                audio_data_array = np.frombuffer(audio_data_to_process, np.int16).astype(np.float32) / 32768.0
+            chunk = await client_audio_buffer.get()
+            audio_data_array = np.frombuffer(chunk, np.int16).astype(np.float32) / 32768.0
 
-                transcription = await transcribe(audio_data_array)
-                transcription_text = transcription["text"].rstrip(".")
+            transcription = await transcribe(audio_data_array)
+            transcription_text = transcription["text"].rstrip(".")
 
-                if transcription_text:
-                    await send_transcription(transcription_text)
-                    logger.info(f"Sent transcription: {transcription_text}")
-            else:
-                await asyncio.sleep(0.1)
+            if transcription_text:
+                await send_transcription(transcription_text)
+                logger.info(f"Sent transcription: {transcription_text}")
         except Exception as e:
             logger.error(f"Error in client consumer task: {str(e)}")
 
         logger.info(f"Client consumer task iteration - Buffer size: {client_audio_buffer.qsize()}")
+
 
 @app.post("/start-client")
 async def start_client_transcription():
