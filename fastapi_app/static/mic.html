@@ -3,49 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Real-time Transcription and Answers</title>
+    <title>Client-side Real-time Transcription and Answers</title>
     <link rel="icon" href="data:,">
     <style>
-        .sidebar {
-            position: fixed;
-            left: 0;
-            top: 0;
-            bottom: 0;
-            width: 150px;
-            background-color: #2c3e50;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        
-        .sidebar button {
-            width: 100%;
-            padding: 10px;
-            background-color: #3498db;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-            margin-bottom: 10px;
-        }
-
-        .sidebar button:hover:not(.active) {
-            background-color: #2980b9;
-        }
-
-        .sidebar button.active {
-            background-color: #2ecc71;
-            cursor: default;
-        }
-
-        .sidebar button:disabled {
-            background-color: #95a5a6;
-            cursor: not-allowed;
-        }
-
-
         body {
             font-family: Arial, sans-serif;
             display: flex;
@@ -55,7 +15,6 @@
             background-color: #f0f0f0;
             color: #333;
             margin: 0;
-            margin-left: 150px;
         }
         h1 {
             margin-bottom: 30px;
@@ -139,11 +98,7 @@
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <button id="serverModeBtn" class="active">Backend Side Transcription</button>
-        <button id="clientModeBtn">Frontend Side Transcription</button>
-    </div>
-    <h1 id="modeHeading">Backend Side (Mic + Speaker) Transcription</h1>
+    <h1>Client-side Real-time Transcription and Answers</h1>
     <div class="button-container">
         <div class="button-group">
             <button id="startBtn">Start</button>
@@ -169,15 +124,12 @@
         const stopBtn = document.getElementById('stopBtn');
         const getAnswersBtn = document.getElementById('getAnswersBtn');
         const downloadBtn = document.getElementById('downloadBtn');
-        const serverModeBtn = document.getElementById('serverModeBtn');
-        const clientModeBtn = document.getElementById('clientModeBtn');
         let socket;
         let audioSocket;
         let transcriptionHistory = [];
         let isResuming = false;
         let mediaRecorder;
         let audioChunks = [];
-        let isClientMode = false;
 
         downloadBtn.addEventListener('click', () => {
             const transcriptionJSON = JSON.stringify(transcriptionHistory, null, 2);
@@ -211,67 +163,96 @@
             };
         }
 
+        function connectAudioWebSocket() {
+            audioSocket = new WebSocket('ws://' + window.location.host + '/audio-stream');
+            audioSocket.onopen = function(event) {
+                console.log("Audio WebSocket connection opened");
+            };
+            audioSocket.onclose = function(event) {
+                console.log("Audio WebSocket connection closed");
+            };
+            audioSocket.onerror = function(error) {
+                console.error("Audio WebSocket error:", error);
+            };
+        }
+
         function updateTranscriptionDisplay() {
             transcriptionDiv.innerHTML = transcriptionHistory.join('<br>');
             transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
         }
 
         async function startRecording() {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
 
-        mediaRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-                audioChunks.push(event.data);
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    audioChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                audioChunks = [];
+                sendAudioChunk(audioBlob);
+            };
+
+            mediaRecorder.start(1000); // Capture 1 second of audio at a time
+        }
+
+        async function sendAudioChunk(audioBlob) {
+            const arrayBuffer = await audioBlob.arrayBuffer();
+            const audioContext = new AudioContext();
+            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            const originalAudioData = audioBuffer.getChannelData(0);
+
+            // Resample to 16000 Hz
+            const resampledAudioData = new Float32Array(16000);
+            const stepSize = audioBuffer.sampleRate / 16000;
+            for (let i = 0; i < 16000; i++) {
+                resampledAudioData[i] = originalAudioData[Math.floor(i * stepSize)];
             }
-        };
 
-        mediaRecorder.onstop = () => {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            audioChunks = [];
-            sendAudioChunk(audioBlob);
-        };
+            // Convert to 16-bit PCM
+            const pcmData = new Int16Array(resampledAudioData.length);
+            for (let i = 0; i < resampledAudioData.length; i++) {
+                const s = Math.max(-1, Math.min(1, resampledAudioData[i]));
+                pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            }
 
-        mediaRecorder.start(1000); // Capture 1 second of audio at a time
-    }
+            audioSocket.send(pcmData.buffer);
+        }
 
-    startBtn.addEventListener('click', async () => {
-        const endpoint = isClientMode ? 
-            (isResuming ? '/resume-client' : '/start-client') : 
-            (isResuming ? '/resume' : '/start');
-        const response = await fetch(endpoint, { method: 'POST' });
-        if (response.ok) {
-            connectWebSocket();
-            if (isClientMode) {
+        startBtn.addEventListener('click', async () => {
+            const endpoint = isResuming ? '/resume-client' : '/start-client';
+            const response = await fetch(endpoint, { method: 'POST' });
+            if (response.ok) {
+                connectWebSocket();
                 connectAudioWebSocket();
                 startRecording();
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                if (!isResuming) {
+                    transcriptionHistory = [];
+                    updateTranscriptionDisplay();
+                }
+                startBtn.textContent = 'Start';
+                startBtn.classList.remove('resume');
+                isResuming = false;
             }
-            startBtn.disabled = true;
-            stopBtn.disabled = false;
-            if (!isResuming) {
-                transcriptionHistory = [];
-                updateTranscriptionDisplay();
-            }
-            startBtn.textContent = 'Start';
-            startBtn.classList.remove('resume');
-            isResuming = false;
-        }
         });
 
         stopBtn.addEventListener('click', async () => {
-            const endpoint = isClientMode ? '/stop-client' : '/stop';
-            const response = await fetch(endpoint, { method: 'POST' });
+            const response = await fetch('/stop-client', { method: 'POST' });
             if (response.ok) {
                 if (socket) {
                     socket.close();
                 }
-                if (isClientMode) {
-                    if (audioSocket) {
-                        audioSocket.close();
-                    }
-                    if (mediaRecorder) {
-                        mediaRecorder.stop();
-                    }
+                if (audioSocket) {
+                    audioSocket.close();
+                }
+                if (mediaRecorder) {
+                    mediaRecorder.stop();
                 }
                 startBtn.disabled = false;
                 stopBtn.disabled = true;
@@ -295,75 +276,7 @@
                 answersDiv.scrollTop = answersDiv.scrollHeight;
             }
         });
-        
-        serverModeBtn.addEventListener('click', () => {
-            isClientMode = false;
-            serverModeBtn.classList.add('active');
-            clientModeBtn.classList.remove('active');
-            resetUI();
-        });
 
-        clientModeBtn.addEventListener('click', () => {
-            isClientMode = true;
-            clientModeBtn.classList.add('active');
-            serverModeBtn.classList.remove('active');
-            resetUI();
-        });
-
-        function resetUI() {
-            if (socket) {
-                socket.close();
-            }
-            if (audioSocket) {
-                audioSocket.close();
-            }
-            if (mediaRecorder) {
-                mediaRecorder.stop();
-            }
-            startBtn.disabled = false;
-            stopBtn.disabled = true;
-            startBtn.textContent = 'Start';
-            startBtn.classList.remove('resume');
-            isResuming = false;
-            transcriptionHistory = [];
-            updateTranscriptionDisplay();
-            answersDiv.innerHTML = '';
-            updateModeUI(isClientMode);
-        }
-
-        const modeHeading = document.getElementById('modeHeading');
-
-    function updateModeUI(isClientMode) {
-            if (isClientMode) {
-                clientModeBtn.classList.add('active');
-                clientModeBtn.disabled = true;
-                serverModeBtn.classList.remove('active');
-                serverModeBtn.disabled = false;
-                modeHeading.textContent = "Frontend Side (Mic Only) Transcription";
-            } else {
-                serverModeBtn.classList.add('active');
-                serverModeBtn.disabled = true;
-                clientModeBtn.classList.remove('active');
-                clientModeBtn.disabled = false;
-                modeHeading.textContent = "Backend Side (Mic + Speaker) Transcription";
-            }
-        }
-
-        serverModeBtn.addEventListener('click', () => {
-            isClientMode = false;
-            updateModeUI(isClientMode);
-            resetUI();
-        });
-
-        clientModeBtn.addEventListener('click', () => {
-            isClientMode = true;
-            updateModeUI(isClientMode);
-            resetUI();
-        });
-
-        // Initialize the UI
-        isClientMode = false;
-        updateModeUI(isClientMode);
         stopBtn.disabled = true;
     </script>
 </body>

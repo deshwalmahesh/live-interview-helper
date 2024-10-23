@@ -60,6 +60,8 @@ START = asyncio.Event()
 RESUMING = False
 active_connections = set()
 
+client_audio_buffer = asyncio.Queue(maxsize=LENGTH_IN_SEC * CHUNK)
+
 
 class TranscriptionRequest(BaseModel):
     transcription: list
@@ -162,10 +164,69 @@ async def stop_transcription():
     START.clear()
     return {"status": "stopped"}
 
+
+# ----- Functionality Where Client sends audio -------
+@app.websocket("/audio-stream")
+async def websocket_audio_stream(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_bytes()
+            await client_audio_buffer.put(data)
+    except:
+        pass
+
+async def client_consumer_task():
+    while START.is_set():
+        try:
+            if client_audio_buffer.qsize() >= LENGTH_IN_SEC:
+                audio_data_to_process = b''.join([await client_audio_buffer.get() for _ in range(LENGTH_IN_SEC)])
+                audio_data_array = np.frombuffer(audio_data_to_process, np.int16).astype(np.float32) / 32768.0
+
+                transcription = await transcribe(audio_data_array)
+                transcription_text = transcription["text"].rstrip(".")
+
+                if transcription_text:
+                    await send_transcription(transcription_text)
+                    logger.info(f"Sent transcription: {transcription_text}")
+            else:
+                await asyncio.sleep(0.1)
+        except Exception as e:
+            logger.error(f"Error in client consumer task: {str(e)}")
+
+        logger.info(f"Client consumer task iteration - Buffer size: {client_audio_buffer.qsize()}")
+
+@app.post("/start-client")
+async def start_client_transcription():
+    global client_audio_buffer, RESUMING
+    if not START.is_set():
+        START.set()
+        RESUMING = False
+        # Clear the buffer by creating a new Queue
+        client_audio_buffer = asyncio.Queue(maxsize=LENGTH_IN_SEC * CHUNK)
+        asyncio.create_task(client_consumer_task())
+    return {"status": "started"}
+
+@app.post("/resume-client")
+async def resume_client_transcription():
+    if not START.is_set():
+        START.set()
+        global RESUMING
+        RESUMING = True
+        asyncio.create_task(client_consumer_task())
+    return {"status": "resumed"}
+
+@app.post("/stop-client")
+async def stop_client_transcription():
+    START.clear()
+    return {"status": "stopped"}
+
+
+# ------ Common Functions  --------
 async def status_check():
     while True:
-        logger.info(f"Task status - START: {START.is_set()}, Buffer size: {audio_buffer.qsize()}")
-        await asyncio.sleep(5)  # Check every 5 seconds
+        logger.info(f"Task status - START: {START.is_set()}, Server Buffer size: {audio_buffer.qsize()}, Client Buffer size: {client_audio_buffer.qsize()}")
+        await asyncio.sleep(5)
 
 @app.on_event("startup")
 async def startup_event():
