@@ -219,7 +219,6 @@
                 
     function startRecording() {
         chunksSent = 0;
-        transcriptionHistory = [];
         
         websocket = new WebSocket('ws://localhost:8000/audio-stream');
         
@@ -330,16 +329,19 @@
                     connectAudioWebSocket();
                     await startRecording();
                 }
-            startBtn.disabled = true;
-            stopBtn.disabled = false;
-            if (!isResuming) {
-                transcriptionHistory = [];
-                updateTranscriptionDisplay();
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                
+                // Only clear history if it's a new session, regardless of mode
+                if (!isResuming) {
+                    transcriptionHistory = [];
+                    updateTranscriptionDisplay();
+                }
+                
+                startBtn.textContent = 'Start';
+                startBtn.classList.remove('resume');
+                isResuming = false;
             }
-            startBtn.textContent = 'Start';
-            startBtn.classList.remove('resume');
-            isResuming = false;
-        }
         });
 
         stopBtn.addEventListener('click', async () => {
