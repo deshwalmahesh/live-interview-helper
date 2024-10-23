@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Transcription and Answers</title>
+    <link rel="icon" href="data:,">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background-color: #f0f0f0;
+            color: #333;
+            margin: 0;
+        }
+        h1 {
+            margin-bottom: 30px;
+            color: #2c3e50;
+        }
+        .button-container {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 1200px;
+            margin-bottom: 20px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+        .container {
+            display: flex;
+            width: 100%;
+            max-width: 1200px;
+            gap: 20px;
+        }
+        .panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-header {
+            background-color: #3498db;
+            color: white;
+            padding: 10px;
+            border-radius: 5px 5px 0 0;
+            font-weight: bold;
+        }
+        #transcription, #answers {
+            height: 500px;
+            border: 1px solid #ccc;
+            border-top: none;
+            padding: 10px;
+            margin-bottom: 20px;
+            white-space: pre-wrap;
+            overflow-y: auto;
+            background-color: white;
+            border-radius: 0 0 5px 5px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #27ae60;
+        }
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        #getAnswersBtn {
+            background-color: #e74c3c;
+        }
+        #getAnswersBtn:hover {
+            background-color: #c0392b;
+        }
+        #downloadBtn {
+            background-color: #3498db;
+        }
+        #downloadBtn:hover {
+            background-color: #2980b9;
+        }
+        #startBtn.resume {
+            background-color: #f39c12;
+        }
+        #startBtn.resume:hover {
+            background-color: #d35400;
+        }
+    </style>
+</head>
+<body>
+    <h1>Real-time Transcription and Answers</h1>
+    <div class="button-container">
+        <div class="button-group">
+            <button id="startBtn">Start</button>
+            <button id="stopBtn">Stop</button>
+            <button id="downloadBtn">Download Transcription</button>
+        </div>
+        <button id="getAnswersBtn">Get Answers</button>
+    </div>
+    <div class="container">
+        <div class="panel">
+            <div class="panel-header">Transcription</div>
+            <div id="transcription"></div>
+        </div>
+        <div class="panel">
+            <div class="panel-header">Answers</div>
+            <div id="answers"></div>
+        </div>
+    </div>
+    <script>
+        const transcriptionDiv = document.getElementById('transcription');
+        const answersDiv = document.getElementById('answers');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const getAnswersBtn = document.getElementById('getAnswersBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        let socket;
+        let transcriptionHistory = [];
+        let isResuming = false;
+        
+
+        downloadBtn.addEventListener('click', () => {
+            const transcriptionJSON = JSON.stringify(transcriptionHistory, null, 2);
+            const blob = new Blob([transcriptionJSON], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'transcription_history.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        function connectWebSocket() {
+            socket = new WebSocket('ws://' + window.location.host + '/ws');
+            socket.onopen = function(event) {
+                console.log("WebSocket connection opened");
+            };
+            socket.onmessage = function(event) {
+                const timestamp = new Date().toLocaleTimeString();
+                const newTranscription = `${timestamp}: ${event.data}`;
+                transcriptionHistory.push(newTranscription);
+                updateTranscriptionDisplay();
+            };
+            socket.onclose = function(event) {
+                console.log("WebSocket connection closed");
+            };
+            socket.onerror = function(error) {
+                console.error("WebSocket error:", error);
+            };
+        }
+
+        function updateTranscriptionDisplay() {
+            transcriptionDiv.innerHTML = transcriptionHistory.join('<br>');
+            transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
+        }
+
+        startBtn.addEventListener('click', async () => {
+            const endpoint = isResuming ? '/resume' : '/start';
+            const response = await fetch(endpoint, { method: 'POST' });
+            if (response.ok) {
+                connectWebSocket();
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                if (!isResuming) {
+                    // Only clear history if it's a new session, not when resuming
+                    transcriptionHistory = [];
+                    updateTranscriptionDisplay();
+                }
+                // Reset button state
+                startBtn.textContent = 'Start';
+                startBtn.classList.remove('resume');
+                isResuming = false;
+            }
+        });
+
+        stopBtn.addEventListener('click', async () => {
+            const response = await fetch('/stop', { method: 'POST' });
+            if (response.ok) {
+                if (socket) {
+                    socket.close();
+                }
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+                startBtn.textContent = 'Resume';
+                startBtn.classList.add('resume');
+                isResuming = true;
+            }
+        });
+
+        getAnswersBtn.addEventListener('click', async () => {
+            const response = await fetch('/get_answers', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ transcription: transcriptionHistory }),
+            });
+            if (response.ok) {
+                const answer = await response.text();
+                answersDiv.innerHTML = answer;
+                answersDiv.scrollTop = answersDiv.scrollHeight;
+            }
+        });
+
+        stopBtn.disabled = true;
+    </script>
+</body>
+</html>

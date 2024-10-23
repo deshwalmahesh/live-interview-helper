@@ -56,6 +56,7 @@ async def transcribe_audio(audio_data):
         generate_kwargs={"language": "english", "max_new_tokens": 128})
     
     text = result["text"]
+    print(text)
     
     # # remove anything from the text which is between () or [] --> these are non-verbal background noises/music/etc.
     # text = re.sub(r"\[.*\]", "", text) 
