@@ -6,3 +6,4 @@
 *.pt
 *.bin
 __pycache__/*
+*.ipynb
