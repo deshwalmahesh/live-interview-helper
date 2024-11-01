@@ -1,0 +1,8 @@
+*.env
+*.pth
+*.zip
+*.npy
+*.np
+*.pt
+*.bin
+__pycache__/*
