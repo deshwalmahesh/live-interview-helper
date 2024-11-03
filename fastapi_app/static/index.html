@@ -186,8 +186,10 @@
         }
 
         .transcription-message {
-            margin-bottom: 2px;
-            padding: 2px 0;
+            padding: 3px 10px;
+            margin-bottom: 3px;
+            border-radius: 2px;
+            background-color: #f8f8f6;
         }
 
         .transcription-message:last-child {
@@ -195,7 +197,7 @@
         }
 
         .selected-message {
-            background-color: #6dc4d1; /* Light background for selected messages */
+            background-color: #7bbdc7; /* Light background for selected messages */
         }
 
     </style>
@@ -325,7 +327,6 @@
         });
 
 
-
         downloadBtn.addEventListener('click', () => {
             const transcriptionJSON = JSON.stringify(transcriptionHistory, null, 2);
             const blob = new Blob([transcriptionJSON], { type: 'application/json' });
@@ -373,12 +374,20 @@
                 .map(item => item.text);
         }
 
-        function getLastThirtySecondsMessages() {
-            const thirtySecondsAgo = Date.now() - 30000; // 30 seconds in milliseconds
-            return transcriptionHistory.filter(msg => {
+        function getRecentTranscriptions() {
+            const sixtySecondsAgo = Date.now() - 60000; // 60 seconds in milliseconds
+            const recentMessages = transcriptionHistory.filter(msg => {
                 const msgTime = new Date(msg.split(': ')[0]).getTime();
-                return msgTime > thirtySecondsAgo;
+                return msgTime > sixtySecondsAgo;
             });
+
+            // If we have less than 15 messages in the last 60 seconds,
+            // get the last 15 messages from the entire history
+            if (recentMessages.length < 15) {
+                return transcriptionHistory.slice(-15);
+            }
+
+            return recentMessages;
         }
 
         function updateTranscriptionDisplay() {
@@ -576,9 +585,16 @@
         getAnswersBtn.addEventListener('click', async () => {
             let selectedMessages = getSelectedMessages();
             if (selectedMessages.length === 0) {
-                selectedMessages = getLastThirtySecondsMessages();
+                selectedMessages = getRecentTranscriptions();
             }
             
+            // If there are still no messages, which is unlikely but possible
+            // if the transcription history is completely empty
+            if (selectedMessages.length === 0) {
+                alert("No transcription history available.");
+                return;
+            }
+
             const response = await fetch('/get_answers', {
                 method: 'POST',
                 headers: {
