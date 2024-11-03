@@ -77,7 +77,7 @@ async def get_answers(request: TranscriptionRequest):
     TO-DO: Errors handling, Prompting, Proper Transcription History formstting
     """
     transcription_history = str(request.transcription)
-    logger.info(f"Transcription History: {transcription_history}")
+    logger.warning(f"Transcription History: {transcription_history}")
     return LLM.hit_llm(transcription_history)
 
 @app.websocket("/ws")
@@ -127,7 +127,7 @@ async def consumer_task():
                 audio_data_to_process = b''.join([await audio_buffer.get() for _ in range(LENGTH_IN_SEC)])
                 audio_data_array = np.frombuffer(audio_data_to_process, np.int16).astype(np.float32) / 32768.0
 
-                logger.warning(f"LENGTH_IN_SEC: {LENGTH_IN_SEC} || CHUNK_SIZE: {CHUNK_SIZE}")
+                logger.info(f"LENGTH_IN_SEC: {LENGTH_IN_SEC} || CHUNK_SIZE: {CHUNK_SIZE}")
 
                 transcription_task = asyncio.create_task(transcribe(audio_data_array, RATE = RATE))
 

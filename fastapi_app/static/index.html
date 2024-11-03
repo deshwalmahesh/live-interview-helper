@@ -185,6 +185,19 @@
             background-color: #d35400;
         }
 
+        .transcription-message {
+            margin-bottom: 2px;
+            padding: 2px 0;
+        }
+
+        .transcription-message:last-child {
+            margin-bottom: 0;
+        }
+
+        .selected-message {
+            background-color: #6dc4d1; /* Light background for selected messages */
+        }
+
     </style>
 </head>
 <body>
@@ -225,6 +238,10 @@
             <div id="answers"></div>
         </div>
     </div>
+    <template id="message-template">
+        <div class="transcription-message" data-timestamp="">
+        </div>
+    </template>
     <script>
         const transcriptionDiv = document.getElementById('transcription');
         const answersDiv = document.getElementById('answers');
@@ -341,9 +358,59 @@
             };
         }
 
+        function toggleMessageSelection(element) {
+            element.classList.toggle('selected-message');
+        }
+
+        function getSelectedMessages() {
+            const selectedElements = transcriptionDiv.querySelectorAll('.selected-message');
+            return Array.from(selectedElements)
+                .map(el => ({
+                    index: parseInt(el.getAttribute('data-index')),
+                    text: el.textContent
+                }))
+                .sort((a, b) => a.index - b.index)
+                .map(item => item.text);
+        }
+
+        function getLastThirtySecondsMessages() {
+            const thirtySecondsAgo = Date.now() - 30000; // 30 seconds in milliseconds
+            return transcriptionHistory.filter(msg => {
+                const msgTime = new Date(msg.split(': ')[0]).getTime();
+                return msgTime > thirtySecondsAgo;
+            });
+        }
+
         function updateTranscriptionDisplay() {
             const filteredTranscription = transcriptionHistory.filter(t => t.trim() !== '');
-            transcriptionDiv.innerHTML = filteredTranscription.join('<br>');
+            
+            // Create a document fragment to hold new messages
+            const fragment = document.createDocumentFragment();
+            
+            filteredTranscription.forEach((t, index) => {
+                let messageElement = transcriptionDiv.querySelector(`[data-index="${index}"]`);
+                
+                if (!messageElement) {
+                    messageElement = document.createElement('div');
+                    messageElement.className = 'transcription-message';
+                    messageElement.setAttribute('data-index', index);
+                    messageElement.addEventListener('click', () => toggleMessageSelection(messageElement));
+                    fragment.appendChild(messageElement);
+                }
+                
+                messageElement.textContent = t;
+            });
+            
+            // Append new messages
+            transcriptionDiv.appendChild(fragment);
+            
+            // Remove any excess elements
+            Array.from(transcriptionDiv.children).forEach((child, index) => {
+                if (index >= filteredTranscription.length) {
+                    transcriptionDiv.removeChild(child);
+                }
+            });
+
             transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
         }
 
@@ -389,27 +456,29 @@
                     });
             };
 
-        websocket.onmessage = event => {
-            console.log('Received message:', event.data);
-            if (event.data === "Transcription complete.") {
-            } else {
-                const now = Date.now();
-                const timeString = new Date(now).toLocaleTimeString();
-                const newText = `${timeString}: ${event.data}`;
-                transcriptionDiv.innerHTML += newText + '<br>';
-                transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
-        
-                // Update transcription history
-                transcriptionHistory.push(newText);
-        
-                console.log('Current transcription history:', transcriptionHistory);
-            }
-        };
+            websocket.onmessage = event => {
+                console.log('Received message:', event.data);
+                if (event.data === "Transcription complete.") {
+                    // Handle completion if needed
+                } else {
+                    const now = Date.now();
+                    const timeString = new Date(now).toLocaleTimeString();
+                    const newText = `${timeString}: ${event.data}`;
+                    
+                    // Update transcription history
+                    transcriptionHistory.push(newText);
+                    
+                    // Update the display
+                    updateTranscriptionDisplay();
 
-        websocket.onerror = error => {
-            showError('WebSocket error: ' + error.message);
-            console.error('WebSocket error:', error);
-        };
+                    console.log('Current transcription history:', transcriptionHistory);
+                }
+            };
+
+            websocket.onerror = error => {
+                showError('WebSocket error: ' + error.message);
+                console.error('WebSocket error:', error);
+            };
 
         websocket.onclose = () => {
         };
@@ -505,12 +574,17 @@
         });
 
         getAnswersBtn.addEventListener('click', async () => {
+            let selectedMessages = getSelectedMessages();
+            if (selectedMessages.length === 0) {
+                selectedMessages = getLastThirtySecondsMessages();
+            }
+            
             const response = await fetch('/get_answers', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ transcription: transcriptionHistory }),
+                body: JSON.stringify({ transcription: selectedMessages }),
             });
             if (response.ok) {
                 const answer = await response.text();
