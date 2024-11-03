@@ -1,6 +1,7 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from typing import List
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import pyaudio
@@ -38,8 +39,13 @@ client_audio_buffer = asyncio.Queue(maxsize = CHUNK_SIZE)
 thread_pool = ThreadPoolExecutor(max_workers=1)
 
 
+class PreviousAnswersHistory(BaseModel):
+    prev_transcriptions: List[str]
+    prev_answers: List[str]
+
 class TranscriptionRequest(BaseModel):
-    transcription: list
+    transcription: List[str]
+    previous_answers_history: PreviousAnswersHistory
 
 class TranscriptionConfig(BaseModel):
     numSpeakers: int
@@ -75,12 +81,19 @@ async def update_speakers(config: TranscriptionConfig):
 @app.post("/get_answers")
 async def get_answers(request: TranscriptionRequest):
     """
-    TO-DO: Errors handling, Prompting, Proper Transcription History formstting
+    Error Handling, Proper history usage remaining
     """
-    transcription_history = str(request.transcription)
-    logger.info(f"Transcription History: {transcription_history}")
+    transcription_history = str(request.transcription) # We need to properly format it
+    previous_answers_history = request.previous_answers_history # Add functionality to use it in calls, if needed
+    
+    logger.info(f"Current Transcription History: {transcription_history}")
+    logger.info(f"Previous Answers History: {previous_answers_history}")
+
     markdown_content = LLM.hit_llm(transcription_history)
+    
     return JSONResponse(content={"markdown": markdown_content})
+
+
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):

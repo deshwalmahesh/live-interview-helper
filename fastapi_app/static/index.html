@@ -219,6 +219,23 @@
             cursor: not-allowed;
         }
 
+        #clearBtn {
+            background-color: #e74c3c;
+        }
+
+        #clearBtn:hover {
+            background-color: #c0392b;
+        }
+
+        .answers-group {
+            display: flex;
+            align-items: center;
+        }
+
+        #spinner {
+            margin-left: 10px;
+        }
+
         .spinner {
             border: 4px solid #f3f3f3;
             border-top: 4px solid #3498db;
@@ -318,9 +335,12 @@
             <button id="startBtn">Start</button>
             <button id="stopBtn">Stop</button>
             <button id="downloadBtn">Download Transcription</button>
+            <button id="clearBtn">Clear</button>
         </div>
-        <button id="getAnswersBtn">Get Answers</button>
-        <div id="spinner" class="spinner" style="display: none;"></div>
+        <div class="answers-group">
+            <button id="getAnswersBtn">Get Answers</button>
+            <div id="spinner" class="spinner" style="display: none;"></div>
+        </div>
     </div>
     <div class="container">
         <div class="panel">
@@ -346,9 +366,12 @@
         const downloadBtn = document.getElementById('downloadBtn');
         const serverModeBtn = document.getElementById('serverModeBtn');
         const clientModeBtn = document.getElementById('clientModeBtn');
+        const clearBtn = document.getElementById('clearBtn');
+
         let socket;
         let audioSocket;
         let transcriptionHistory = [];
+        let prevAnswersHistory = { prev_transcriptions: [], prev_answers: [] };
         let isResuming = false;
         let mediaRecorder;
         let audioChunks = [];
@@ -431,6 +454,22 @@
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
+        });
+
+        clearBtn.addEventListener('click', () => {
+            if (confirm("Are you sure you want to clear all history? This action cannot be undone.")) {
+                // Clear transcription history
+                transcriptionHistory = [];
+                updateTranscriptionDisplay();
+
+                // Clear answers panel
+                answersDiv.innerHTML = '';
+
+                // Clear all selections
+                clearAllSelections();
+
+                console.log('History cleared');
+            }
         });
 
         function connectWebSocket() {
@@ -681,7 +720,6 @@
         }
 
         getAnswersBtn.addEventListener('click', async () => {
-            // Show spinner and disable button
             spinner.style.display = 'inline-block';
             getAnswersBtn.disabled = true;
 
@@ -692,7 +730,6 @@
             
             if (selectedMessages.length === 0) {
                 alert("No transcription history available.");
-                // Hide spinner and enable button
                 spinner.style.display = 'none';
                 getAnswersBtn.disabled = false;
                 return;
@@ -704,7 +741,10 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ transcription: selectedMessages }),
+                    body: JSON.stringify({
+                        transcription: selectedMessages,
+                        previous_answers_history: prevAnswersHistory
+                    }),
                 });
 
                 if (response.ok) {
@@ -718,6 +758,10 @@
                     const htmlAnswer = marked.parse(markdown);
                     answersDiv.innerHTML = htmlAnswer;
                     
+                    // Update prevAnswersHistory
+                    prevAnswersHistory.prev_transcriptions.push(selectedMessages.join('\n'));
+                    prevAnswersHistory.prev_answers.push(markdown);
+
                     // Scroll to the top of the answer panel
                     answersDiv.scrollTop = 0;
                     
@@ -734,7 +778,6 @@
             } catch (error) {
                 console.error('Error:', error);
             } finally {
-                // Hide spinner and enable button
                 spinner.style.display = 'none';
                 getAnswersBtn.disabled = false;
             }
