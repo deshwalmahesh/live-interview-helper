@@ -219,10 +219,21 @@
             cursor: not-allowed;
         }
 
-        @keyframes buttonClick {
-            0% { transform: scale(1); }
-            50% { transform: scale(0.95); }
-            100% { transform: scale(1); }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
         .button-clicked {
@@ -309,6 +320,7 @@
             <button id="downloadBtn">Download Transcription</button>
         </div>
         <button id="getAnswersBtn">Get Answers</button>
+        <div id="spinner" class="spinner" style="display: none;"></div>
     </div>
     <div class="container">
         <div class="panel">
@@ -330,6 +342,7 @@
         const startBtn = document.getElementById('startBtn');
         const stopBtn = document.getElementById('stopBtn');
         const getAnswersBtn = document.getElementById('getAnswersBtn');
+        const spinner = document.getElementById('spinner');
         const downloadBtn = document.getElementById('downloadBtn');
         const serverModeBtn = document.getElementById('serverModeBtn');
         const clientModeBtn = document.getElementById('clientModeBtn');
@@ -668,8 +681,9 @@
         }
 
         getAnswersBtn.addEventListener('click', async () => {
-            // Add animation class
-            getAnswersBtn.classList.add('button-clicked');
+            // Show spinner and disable button
+            spinner.style.display = 'inline-block';
+            getAnswersBtn.disabled = true;
 
             let selectedMessages = getSelectedMessages();
             if (selectedMessages.length === 0) {
@@ -678,42 +692,52 @@
             
             if (selectedMessages.length === 0) {
                 alert("No transcription history available.");
+                // Hide spinner and enable button
+                spinner.style.display = 'none';
+                getAnswersBtn.disabled = false;
                 return;
             }
 
-            const response = await fetch('/get_answers', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ transcription: selectedMessages }),
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                let markdown = data.markdown;
-                
-                // Process equations
-                markdown = processEquations(markdown);
-                
-                // Convert Markdown to HTML
-                const htmlAnswer = marked.parse(markdown);
-                answersDiv.innerHTML = htmlAnswer;
-                
-                // Tell MathJax to render the math
-                MathJax.typesetPromise([answersDiv]).then(() => {
-                    // MathJax rendering is complete
-                    answersDiv.scrollTop = answersDiv.scrollHeight;
+            try {
+                const response = await fetch('/get_answers', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ transcription: selectedMessages }),
                 });
 
-                // Clear all selections
-                clearAllSelections();
-            }
+                if (response.ok) {
+                    const data = await response.json();
+                    let markdown = data.markdown;
+                    
+                    // Process equations
+                    markdown = processEquations(markdown);
+                    
+                    // Convert Markdown to HTML
+                    const htmlAnswer = marked.parse(markdown);
+                    answersDiv.innerHTML = htmlAnswer;
+                    
+                    // Scroll to the top of the answer panel
+                    answersDiv.scrollTop = 0;
+                    
+                    // Tell MathJax to render the math
+                    MathJax.typesetPromise([answersDiv]).then(() => {
+                        // MathJax rendering is complete
+                    });
 
-            // Remove animation class after a short delay
-            setTimeout(() => {
-                getAnswersBtn.classList.remove('button-clicked');
-            }, 300);
+                    // Clear all selections
+                    clearAllSelections();
+                } else {
+                    console.error('Error fetching answers');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            } finally {
+                // Hide spinner and enable button
+                spinner.style.display = 'none';
+                getAnswersBtn.disabled = false;
+            }
         });
 
         function clearAllSelections() {

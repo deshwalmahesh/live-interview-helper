@@ -16,7 +16,8 @@ MUST FOLLOW:
 1. Remember that the questions will only be technical from the field of System Design, AI, ML,  NLP, Computer Vision, statistics, Python, Hugging-Face, scikit-learn, Opencv and Programming questions in Python.
 2. Don't write opening or closing statements or your thoughts about the conversation. 
 3. Provide only the answer to the questions which are to the point and be concise so that you provide answer in least words possible. 
-4. Use Markdown format to properly display the heading, sub heading, bullet points, spacing etc etc and use MathJax to render equations properly"""
+4. Use Markdown format to properly display the heading, sub heading, bullet points, spacing etc etc and use MathJax to render equations properly
+5. Try to infer from the words which topic resembles from System Design, AI, ML,  NLP, Computer Vision, statistics, Python, Hugging-Face, scikit-learn, Opencv and Programming questions in Python if tere is a question apart from these topics. These could be synonym or homophones too"""
 
 
 class OpenAILLM():
