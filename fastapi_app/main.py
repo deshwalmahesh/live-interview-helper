@@ -17,8 +17,6 @@ logger.info(f"{TRANSCRIPTION_MODEL_NAME} loaded")
 app = FastAPI()
 LLM = OpenAILLM() 
 
-thread_pool = ThreadPoolExecutor(max_workers=1)
-
 # Audio settings
 STEP_IN_SEC: int = 1
 LENGTH_IN_SEC: int = 7
@@ -26,14 +24,17 @@ NB_CHANNELS = 1
 RATE = 16000
 CHUNK_SIZE = RATE * LENGTH_IN_SEC # Just a function dependent on the LENGTH IN SEC
 
+NUM_SPEAKERS = 2
+
 
 global audio_buffer, START, RESUMING
-audio_buffer = asyncio.Queue(maxsize= CHUNK_SIZE)
 START = asyncio.Event()
 RESUMING = False
 active_connections = set()
+audio_buffer = asyncio.Queue(maxsize = CHUNK_SIZE)
+client_audio_buffer = asyncio.Queue(maxsize = CHUNK_SIZE)
 
-client_audio_buffer = asyncio.Queue(maxsize =CHUNK_SIZE)
+thread_pool = ThreadPoolExecutor(max_workers=1)
 
 
 class TranscriptionRequest(BaseModel):
@@ -41,6 +42,7 @@ class TranscriptionRequest(BaseModel):
 
 class TranscriptionConfig(BaseModel):
     numSpeakers: int
+
 
 @app.post("/login")
 async def login(request: dict):
@@ -50,6 +52,12 @@ async def login(request: dict):
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+    
+@app.post("/update_speakers")
+async def update_speakers(config: TranscriptionConfig):
+    global NUM_SPEAKERS
+    NUM_SPEAKERS = config.numSpeakers
+    return {"status": "updated", "numSpeakers": NUM_SPEAKERS}
     
 
 @app.post("/get_answers")
@@ -99,6 +107,8 @@ async def producer_task():
 
 
 async def consumer_task():
+    global NUM_SPEAKERS
+
     while START.is_set():
         try:
             if audio_buffer.qsize() >= LENGTH_IN_SEC:
@@ -108,6 +118,7 @@ async def consumer_task():
                 transcription_task = asyncio.create_task(transcribe(audio_data_array, RATE = RATE))
 
                 # Run diarization in a separate thread as it's giving error in async mode
+                logger.info(f"Current No of Speakers: {NUM_SPEAKERS}")
                 diarization_task = asyncio.create_task(
                     asyncio.to_thread(diarize, audio_data_array, NUM_SPEAKERS, RATE))
 
@@ -160,7 +171,7 @@ async def stop_transcription():
     return {"status": "stopped"}
 
 
-# ----- Functionality Where Client sends audio -------
+# ----- Functionality Where Frontend Client sends audio -------
 @app.websocket("/audio-stream")
 async def websocket_audio_stream(websocket: WebSocket):
     await websocket.accept()
@@ -229,7 +240,7 @@ async def stop_client_transcription():
 async def status_check():
     while True:
         logger.info(f"Task status - START: {START.is_set()}, Server Buffer size: {audio_buffer.qsize()}, Client Buffer size: {client_audio_buffer.qsize()}")
-        await asyncio.sleep(5)
+        await asyncio.sleep(10)
 
 @app.on_event("startup")
 async def startup_event():

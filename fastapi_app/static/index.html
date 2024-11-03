@@ -241,8 +241,22 @@
         let openaiLogin = false;
 
 
-        document.getElementById('numSpeakers').addEventListener('change', (e) => {
+        document.getElementById('numSpeakers').addEventListener('change', async (e) => {
             numSpeakers = parseInt(e.target.value);
+            try {
+                const response = await fetch('/update_speakers', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ numSpeakers }),
+                });
+                if (!response.ok) {
+                    throw new Error('Failed to update number of speakers');
+                }
+            } catch (error) {
+                console.error('Error updating number of speakers:', error);
+            }
         });
 
         document.getElementById('openaiKey').addEventListener('change', async (e) => {
