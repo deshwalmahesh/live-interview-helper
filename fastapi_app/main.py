@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.staticfiles import StaticFiles
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -7,6 +7,7 @@ import numpy as np
 import logging
 from pydantic import BaseModel
 from helpers import transcribe, diarize, TRANSCRIPTION_MODEL_NAME, remove_blacklisted_words
+from llm_helper import OpenAILLM
 
 logging.basicConfig(level=logging.WARN)
 logger = logging.getLogger(__name__)
@@ -14,12 +15,13 @@ logger = logging.getLogger(__name__)
 logger.info(f"{TRANSCRIPTION_MODEL_NAME} loaded")
 
 app = FastAPI()
+LLM = OpenAILLM() 
 
 thread_pool = ThreadPoolExecutor(max_workers=1)
 
 # Audio settings
 STEP_IN_SEC: int = 1
-LENGTH_IN_SEC: int = 3
+LENGTH_IN_SEC: int = 7
 NB_CHANNELS = 1
 RATE = 16000
 CHUNK_SIZE = RATE * LENGTH_IN_SEC # Just a function dependent on the LENGTH IN SEC
@@ -40,12 +42,24 @@ class TranscriptionRequest(BaseModel):
 class TranscriptionConfig(BaseModel):
     numSpeakers: int
 
+@app.post("/login")
+async def login(request: dict):
+    api_key = request.get("api_key")
+    try:
+        LLM.login_and_create_client(api_key)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+
 @app.post("/get_answers")
 async def get_answers(request: TranscriptionRequest):
-    transcription_history = request.transcription
+    """
+    TO-DO: Errors handling, Prompting, Proper Transcription History formstting
+    """
+    transcription_history = str(request.transcription)
     logger.info(f"Transcription History: {transcription_history}")
-    answer = "This is a sample answer based on the provided transcription."
-    return answer * (np.random.randint(5,50))
+    return LLM.hit_llm(transcription_history)
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):

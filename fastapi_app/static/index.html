@@ -157,11 +157,16 @@
         }
 
         #getAnswersBtn {
-            background-color: #e74c3c;
+            background-color: #27ae60;
         }
 
         #getAnswersBtn:hover {
-            background-color: #c0392b;
+            background-color: #60bf88;
+        }
+
+        #getAnswersBtn:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
         }
 
         #downloadBtn {
@@ -189,6 +194,10 @@
     </div>
     <h1 id="modeHeading">Backend Side (Mic + Speaker) Transcription</h1>
     <div class="input-container">
+        <div class="input-group">
+            <label for="openaiKey">OpenAI Key:</label>
+            <input type="password" id="openaiKey">
+        </div>
         <div class="input-group">
             <label for="numSpeakers">No. of Speakers:</label>
             <input type="number" id="numSpeakers" min="1" max="10" value="2">
@@ -229,9 +238,37 @@
         let audioChunks = [];
         let isClientMode = false;
         let numSpeakers = 2;
+        let openaiLogin = false;
+
 
         document.getElementById('numSpeakers').addEventListener('change', (e) => {
             numSpeakers = parseInt(e.target.value);
+        });
+
+        document.getElementById('openaiKey').addEventListener('change', async (e) => {
+            const apiKey = e.target.value;
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ api_key: apiKey }),
+                });
+                
+                if (response.ok) {
+                    openaiLogin = true;
+                    getAnswersBtn.disabled = false;
+                } else {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail);
+                }
+            } catch (error) {
+                openaiLogin = false;
+                getAnswersBtn.disabled = true;
+                alert(`OpenAI login failed: ${error.message}`);
+            }
+            updateGetAnswersButton();
         });
 
 
@@ -274,46 +311,46 @@
         }
 
                 
-    function startRecording() {
-        chunksSent = 0;
-        
-        websocket = new WebSocket('ws://localhost:8000/audio-stream');
-        
-        websocket.onopen = () => {
-            navigator.mediaDevices.getUserMedia({ audio: true })
-                .then(stream => {
-                    audioContext = new AudioContext();
-                    const source = audioContext.createMediaStreamSource(stream);
-                    processor = audioContext.createScriptProcessor(16384, 1, 1);
+        function startRecording() {
+            chunksSent = 0;
+            
+            websocket = new WebSocket('ws://localhost:8000/audio-stream');
+            
+            websocket.onopen = () => {
+                navigator.mediaDevices.getUserMedia({ audio: true })
+                    .then(stream => {
+                        audioContext = new AudioContext();
+                        const source = audioContext.createMediaStreamSource(stream);
+                        processor = audioContext.createScriptProcessor(16384, 1, 1);
 
-                    source.connect(processor);
-                    processor.connect(audioContext.destination);
+                        source.connect(processor);
+                        processor.connect(audioContext.destination);
 
-                    let sampleRate = audioContext.sampleRate;
-                    let resampleRatio = 16000 / sampleRate;
+                        let sampleRate = audioContext.sampleRate;
+                        let resampleRatio = 16000 / sampleRate;
 
-                    processor.onaudioprocess = function(e) {
-                        let inputData = e.inputBuffer.getChannelData(0);
-                        let resampledBuffer = new Float32Array(Math.round(inputData.length * resampleRatio));
-                        
-                        for (let i = 0; i < resampledBuffer.length; i++) {
-                            resampledBuffer[i] = inputData[Math.floor(i / resampleRatio)];
-                        }
+                        processor.onaudioprocess = function(e) {
+                            let inputData = e.inputBuffer.getChannelData(0);
+                            let resampledBuffer = new Float32Array(Math.round(inputData.length * resampleRatio));
+                            
+                            for (let i = 0; i < resampledBuffer.length; i++) {
+                                resampledBuffer[i] = inputData[Math.floor(i / resampleRatio)];
+                            }
 
-                        let int16Array = new Int16Array(resampledBuffer.length);
-                        for (let i = 0; i < resampledBuffer.length; i++) {
-                            int16Array[i] = Math.max(-32768, Math.min(32767, Math.round(resampledBuffer[i] * 32767)));
-                        }
+                            let int16Array = new Int16Array(resampledBuffer.length);
+                            for (let i = 0; i < resampledBuffer.length; i++) {
+                                int16Array[i] = Math.max(-32768, Math.min(32767, Math.round(resampledBuffer[i] * 32767)));
+                            }
 
-                        websocket.send(int16Array.buffer);
-                        chunksSent++;
-                    };
-                })
-                .catch(err => {
-                    showError('Error accessing microphone: ' + err.message);
-                    console.error('Error accessing microphone:', err);
-                });
-        };
+                            websocket.send(int16Array.buffer);
+                            chunksSent++;
+                        };
+                    })
+                    .catch(err => {
+                        showError('Error accessing microphone: ' + err.message);
+                        console.error('Error accessing microphone:', err);
+                    });
+            };
 
         websocket.onmessage = event => {
             console.log('Received message:', event.data);
@@ -340,26 +377,26 @@
         websocket.onclose = () => {
         };
 
-    }
+        }
 
-    function stopRecording() {
-        if (processor) {
-            processor.disconnect();
-            processor = null;
+        function stopRecording() {
+            if (processor) {
+                processor.disconnect();
+                processor = null;
+            }
+            if (audioContext) {
+                audioContext.close();
+                audioContext = null;
+            }
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                websocket.close();
+            }
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
         }
-        if (audioContext) {
-            audioContext.close();
-            audioContext = null;
-        }
-        if (websocket && websocket.readyState === WebSocket.OPEN) {
-            websocket.close();
-        }
-        startBtn.disabled = false;
-        stopBtn.disabled = true;
-    }
-       
-
         
+
+            
         function connectAudioWebSocket() {
             audioSocket = new WebSocket('ws://' + window.location.host + '/audio-stream');
             audioSocket.binaryType = 'arraybuffer';
@@ -444,6 +481,16 @@
                 answersDiv.scrollTop = answersDiv.scrollHeight;
             }
         });
+
+        function updateGetAnswersButton() {
+            getAnswersBtn.disabled = !openaiLogin;
+            if (!openaiLogin) {
+                getAnswersBtn.title = "Please enter a valid OpenAI API key to enable this button";
+            } else {
+                getAnswersBtn.title = "";
+            }
+        }
+
         
         serverModeBtn.addEventListener('click', () => {
             isClientMode = false;
@@ -482,21 +529,21 @@
 
         const modeHeading = document.getElementById('modeHeading');
 
-    function updateModeUI(isClientMode) {
-            if (isClientMode) {
-                clientModeBtn.classList.add('active');
-                clientModeBtn.disabled = true;
-                serverModeBtn.classList.remove('active');
-                serverModeBtn.disabled = false;
-                modeHeading.textContent = "Frontend Side (Mic Only) Transcription";
-            } else {
-                serverModeBtn.classList.add('active');
-                serverModeBtn.disabled = true;
-                clientModeBtn.classList.remove('active');
-                clientModeBtn.disabled = false;
-                modeHeading.textContent = "Backend Side (Mic + Speaker) Transcription";
+        function updateModeUI(isClientMode) {
+                if (isClientMode) {
+                    clientModeBtn.classList.add('active');
+                    clientModeBtn.disabled = true;
+                    serverModeBtn.classList.remove('active');
+                    serverModeBtn.disabled = false;
+                    modeHeading.textContent = "Frontend Side (Mic Only) Transcription";
+                } else {
+                    serverModeBtn.classList.add('active');
+                    serverModeBtn.disabled = true;
+                    clientModeBtn.classList.remove('active');
+                    clientModeBtn.disabled = false;
+                    modeHeading.textContent = "Backend Side (Mic + Speaker) Transcription";
+                }
             }
-        }
 
         serverModeBtn.addEventListener('click', () => {
             isClientMode = false;
@@ -511,6 +558,7 @@
         });
 
         // Initialize the UI
+        updateGetAnswersButton();
         isClientMode = false;
         updateModeUI(isClientMode);
         stopBtn.disabled = true;

@@ -7,3 +7,4 @@
 *.bin
 __pycache__/*
 *.ipynb
+*.cpython
