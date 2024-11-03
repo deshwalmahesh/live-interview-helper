@@ -156,6 +156,17 @@
             cursor: not-allowed;
         }
 
+        @keyframes buttonClick {
+            0% { transform: scale(1); }
+            50% { transform: scale(0.95); }
+            100% { transform: scale(1); }
+        }
+
+        .button-clicked {
+            animation: buttonClick 0.3s ease;
+            background-color: #1e8449; /* Darker green color when clicked */
+        }
+
         #getAnswersBtn {
             background-color: #27ae60;
         }
@@ -189,7 +200,7 @@
             padding: 3px 10px;
             margin-bottom: 3px;
             border-radius: 2px;
-            background-color: #f8f8f6;
+            /* background-color: #f8f8f6; */
         }
 
         .transcription-message:last-child {
@@ -583,13 +594,14 @@
         });
 
         getAnswersBtn.addEventListener('click', async () => {
+            // Add animation class
+            getAnswersBtn.classList.add('button-clicked');
+
             let selectedMessages = getSelectedMessages();
             if (selectedMessages.length === 0) {
                 selectedMessages = getRecentTranscriptions();
             }
             
-            // If there are still no messages, which is unlikely but possible
-            // if the transcription history is completely empty
             if (selectedMessages.length === 0) {
                 alert("No transcription history available.");
                 return;
@@ -602,12 +614,27 @@
                 },
                 body: JSON.stringify({ transcription: selectedMessages }),
             });
+
             if (response.ok) {
                 const answer = await response.text();
                 answersDiv.innerHTML = answer;
                 answersDiv.scrollTop = answersDiv.scrollHeight;
+
+                // Clear all selections
+                clearAllSelections();
             }
+
+            // Remove animation class after a short delay
+            setTimeout(() => {
+                getAnswersBtn.classList.remove('button-clicked');
+            }, 300);
         });
+
+        function clearAllSelections() {
+            const selectedMessages = transcriptionDiv.querySelectorAll('.selected-message');
+            selectedMessages.forEach(msg => msg.classList.remove('selected-message'));
+        }
+
 
         function updateGetAnswersButton() {
             getAnswersBtn.disabled = !openaiLogin;
