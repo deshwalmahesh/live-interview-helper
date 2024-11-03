@@ -43,6 +43,17 @@ class TranscriptionRequest(BaseModel):
 class TranscriptionConfig(BaseModel):
     numSpeakers: int
 
+class LengthInSecConfig(BaseModel):
+    lengthInSec: int
+
+
+@app.post("/update_length_in_sec")
+async def update_length_in_sec(config: LengthInSecConfig):
+    global LENGTH_IN_SEC, RATE, CHUNK_SIZE
+    LENGTH_IN_SEC = config.lengthInSec
+    CHUNK_SIZE = RATE * LENGTH_IN_SEC
+    return {"status": "updated", "lengthInSec": LENGTH_IN_SEC}
+
 
 @app.post("/login")
 async def login(request: dict):
@@ -83,7 +94,9 @@ async def send_transcription(transcription: str):
     for connection in active_connections:
         await connection.send_text(transcription)
 
+
 async def producer_task():
+    global RATE, CHUNK_SIZE
     audio = pyaudio.PyAudio()
     stream = audio.open(
         format=pyaudio.paInt16,
@@ -105,15 +118,16 @@ async def producer_task():
     stream.close()
     audio.terminate()
 
-
 async def consumer_task():
-    global NUM_SPEAKERS
+    global NUM_SPEAKERS, LENGTH_IN_SEC, RATE, CHUNK_SIZE
 
     while START.is_set():
         try:
             if audio_buffer.qsize() >= LENGTH_IN_SEC:
                 audio_data_to_process = b''.join([await audio_buffer.get() for _ in range(LENGTH_IN_SEC)])
                 audio_data_array = np.frombuffer(audio_data_to_process, np.int16).astype(np.float32) / 32768.0
+
+                logger.warning(f"LENGTH_IN_SEC: {LENGTH_IN_SEC} || CHUNK_SIZE: {CHUNK_SIZE}")
 
                 transcription_task = asyncio.create_task(transcribe(audio_data_array, RATE = RATE))
 
@@ -133,7 +147,6 @@ async def consumer_task():
                     await send_transcription(transcription_text)
                     logger.info(f"Sent transcription: {transcription_text}")
                 
-
             else:
                 await asyncio.sleep(0.1)
         except Exception as e:

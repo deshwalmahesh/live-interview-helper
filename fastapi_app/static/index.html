@@ -202,6 +202,10 @@
             <label for="numSpeakers">No. of Speakers:</label>
             <input type="number" id="numSpeakers" min="1" max="10" value="2">
         </div>
+        <div class="input-group">
+            <label for="lengthInSec">Length in Seconds:</label>
+            <input type="number" id="lengthInSec" min="1" max="30" value="7">
+        </div>
     </div>
     <div class="button-container">
         <div class="button-group">
@@ -284,6 +288,25 @@
             }
             updateGetAnswersButton();
         });
+
+        document.getElementById('lengthInSec').addEventListener('change', async (e) => {
+            const lengthInSec = parseInt(e.target.value);
+            try {
+                const response = await fetch('/update_length_in_sec', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ lengthInSec }),
+                });
+                if (!response.ok) {
+                    throw new Error('Failed to update length in seconds');
+                }
+            } catch (error) {
+                console.error('Error updating length in seconds:', error);
+            }
+        });
+
 
 
         downloadBtn.addEventListener('click', () => {
