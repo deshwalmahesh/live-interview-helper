@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Real-time Transcription and Answers</title>
@@ -111,9 +114,16 @@
         }
 
         .panel {
-            flex: 1;
             display: flex;
             flex-direction: column;
+        }
+
+        .panel:first-child {
+            flex: 2;
+        }
+
+        .panel:last-child {
+            flex: 3;
         }
 
         .panel-header {
@@ -134,6 +144,59 @@
             overflow-y: auto;
             background-color: white;
             border-radius: 0 0 5px 5px;
+        }
+
+        #answers {
+            height: 500px;
+            border: 1px solid #ccc;
+            border-top: none;
+            padding: 10px 20px;
+            margin-bottom: 20px;
+            white-space: pre-wrap;
+            overflow-y: auto;
+            background-color: white;
+            border-radius: 0 0 5px 5px;
+            line-height: 1.6;
+            font-family: Arial, sans-serif;
+        }
+
+        #answers h1, #answers h2, #answers h3, #answers h4, #answers h5, #answers h6 {
+            margin-top: 1em;
+            margin-bottom: 0.5em;
+        }
+
+        #answers p {
+            margin-bottom: 1em;
+        }
+
+        #answers ul, #answers ol {
+            margin-bottom: 1em;
+            padding-left: 2em;
+        }
+
+        #answers li {
+            margin-bottom: 0.5em;
+        }
+
+        #answers code {
+            background-color: #f0f0f0;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+        #answers pre {
+            background-color: #f0f0f0;
+            padding: 1em;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+
+        #answers blockquote {
+            border-left: 4px solid #ccc;
+            padding-left: 1em;
+            margin-left: 0;
+            color: #666;
         }
 
         button {
@@ -209,6 +272,12 @@
 
         .selected-message {
             background-color: #7bbdc7; /* Light background for selected messages */
+        }
+
+        .MathJax {
+            overflow-x: auto;
+            overflow-y: hidden;
+            max-width: 100%;
         }
 
     </style>
@@ -593,6 +662,11 @@
             }
         });
 
+        function processEquations(text) {
+            // Replace [equation] with $$equation$$
+            return text.replace(/\[([\s\S]*?)\]/g, (match, p1) => `$$${p1}$$`);
+        }
+
         getAnswersBtn.addEventListener('click', async () => {
             // Add animation class
             getAnswersBtn.classList.add('button-clicked');
@@ -616,9 +690,21 @@
             });
 
             if (response.ok) {
-                const answer = await response.text();
-                answersDiv.innerHTML = answer;
-                answersDiv.scrollTop = answersDiv.scrollHeight;
+                const data = await response.json();
+                let markdown = data.markdown;
+                
+                // Process equations
+                markdown = processEquations(markdown);
+                
+                // Convert Markdown to HTML
+                const htmlAnswer = marked.parse(markdown);
+                answersDiv.innerHTML = htmlAnswer;
+                
+                // Tell MathJax to render the math
+                MathJax.typesetPromise([answersDiv]).then(() => {
+                    // MathJax rendering is complete
+                    answersDiv.scrollTop = answersDiv.scrollHeight;
+                });
 
                 // Clear all selections
                 clearAllSelections();

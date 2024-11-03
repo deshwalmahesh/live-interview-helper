@@ -1,4 +1,5 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -69,7 +70,7 @@ async def update_speakers(config: TranscriptionConfig):
     global NUM_SPEAKERS
     NUM_SPEAKERS = config.numSpeakers
     return {"status": "updated", "numSpeakers": NUM_SPEAKERS}
-    
+
 
 @app.post("/get_answers")
 async def get_answers(request: TranscriptionRequest):
@@ -77,8 +78,9 @@ async def get_answers(request: TranscriptionRequest):
     TO-DO: Errors handling, Prompting, Proper Transcription History formstting
     """
     transcription_history = str(request.transcription)
-    logger.warning(f"Transcription History: {transcription_history}")
-    return LLM.hit_llm(transcription_history)
+    logger.info(f"Transcription History: {transcription_history}")
+    markdown_content = LLM.hit_llm(transcription_history)
+    return JSONResponse(content={"markdown": markdown_content})
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
