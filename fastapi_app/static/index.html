@@ -14,25 +14,59 @@
             left: 0;
             top: 0;
             bottom: 0;
-            width: 150px;
-            background-color: #2c3e50;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
+            width: 70px;
+            background-color: #87badc;
+            transition: width 0.2s ease;
+            overflow: hidden;
+            z-index: 1000;
         }
-        
+
+        .sidebar.expanded {
+            width: 300px;
+        }
+
+        .hamburger {
+            cursor: pointer;
+            padding: 15px;
+        }
+
+        .hamburger span {
+            display: block;
+            width: 30px;
+            height: 3px;
+            margin-bottom: 5px;
+            position: relative;
+            background: #333;
+            border-radius: 3px;
+            z-index: 1;
+            transform-origin: 4px 0px;
+            transition: transform 0.5s cubic-bezier(0.77,0.2,0.05,1.0), 
+            background 0.5s cubic-bezier(0.77,0.2,0.05,1.0),
+            opacity 0.55s ease;
+        }
+
+        .sidebar-content {
+            padding: 20px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            margin: 5px;
+        }
+
+        .sidebar.expanded .sidebar-content {
+            opacity: 1;
+        }
+
         .sidebar button {
             width: 100%;
             padding: 10px;
-            background-color: #3498db;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-            margin-bottom: 10px;
-        }
+            margin-bottom: 15px;
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                transition: background-color 0.3s;
+            }
 
         .sidebar button:hover:not(.active) {
             background-color: #2980b9;
@@ -43,11 +77,12 @@
             cursor: default;
         }
 
-        .sidebar button:disabled {
-            background-color: #95a5a6;
-            cursor: not-allowed;
+        #systemPrompt {
+            width: 100%;
+            resize: vertical;
+            margin-top: 10px;
+            padding-top: 10px;
         }
-
 
         body {
             font-family: Arial, sans-serif;
@@ -58,7 +93,11 @@
             background-color: #f0f0f0;
             color: #333;
             margin: 0;
-            margin-left: 150px;
+            margin-left: 50px;
+        }
+
+        body.sidebar-expanded {
+            margin-left: 300px;
         }
 
         h1 {
@@ -324,8 +363,17 @@
 </head>
 <body>
     <div class="sidebar">
-        <button id="serverModeBtn" class="active">Backend Side Transcription</button>
-        <button id="clientModeBtn">Frontend Side Transcription</button>
+        <div class="hamburger">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+        <div class="sidebar-content">
+            <button id="serverModeBtn" class="active">Backend Side Transcription</button>
+            <button id="clientModeBtn">Frontend Side Transcription</button>
+            <label for="systemPrompt">System Prompt (Shift + Enter for new line):</label>
+            <textarea id="systemPrompt" rows="15"></textarea>
+        </div>
     </div>
     <h1 id="modeHeading">Backend Side (Mic + Speaker) Transcription</h1>
     <div class="input-container">
@@ -379,6 +427,11 @@
         const serverModeBtn = document.getElementById('serverModeBtn');
         const clientModeBtn = document.getElementById('clientModeBtn');
         const clearBtn = document.getElementById('clearBtn');
+        const sidebar = document.querySelector('.sidebar');
+        const hamburger = document.querySelector('.hamburger');
+        const sidebarContent = document.querySelector('.sidebar-content');
+        const systemPrompt = document.getElementById('systemPrompt');
+        const body = document.body;
 
         let socket;
         let audioSocket;
@@ -390,6 +443,47 @@
         let isClientMode = false;
         let numSpeakers = 2;
         let openaiLogin = false;
+        let lastDisplayedIndex = -1;
+
+
+        hamburger.addEventListener('click', () => {
+            sidebar.classList.toggle('expanded');
+            body.classList.toggle('sidebar-expanded');
+            if (sidebar.classList.contains('expanded')) {
+                setTimeout(() => {
+                    sidebarContent.style.display = 'block';
+                }, 150);
+            } else {
+                sidebarContent.style.display = 'none';
+            }
+        });
+
+        systemPrompt.addEventListener('blur', updateSystemPrompt);
+        systemPrompt.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                updateSystemPrompt();
+            }
+        });
+
+        async function updateSystemPrompt() {
+            const newPrompt = systemPrompt.value;
+            try {
+                const response = await fetch('/update_system_prompt', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ system_prompt: newPrompt }),
+                });
+                if (!response.ok) {
+                    throw new Error('Failed to update system prompt');
+                }
+                console.log('System prompt updated successfully');
+            } catch (error) {
+                console.error('Error updating system prompt:', error);
+            }
+        }
 
 
         document.getElementById('numSpeakers').addEventListener('change', async (e) => {
@@ -540,52 +634,55 @@
             // Create a document fragment to hold new messages
             const fragment = document.createDocumentFragment();
             
-            filteredTranscription.forEach((t, index) => {
-                let messageElement = transcriptionDiv.querySelector(`[data-index="${index}"]`);
-                
-                if (!messageElement) {
-                    messageElement = document.createElement('div');
-                    messageElement.className = 'transcription-message';
-                    messageElement.setAttribute('data-index', index);
-                    messageElement.addEventListener('click', () => toggleMessageSelection(messageElement));
-                    messageElement.addEventListener('dblclick', (e) => startEditing(e, messageElement, index));
-                    fragment.appendChild(messageElement);
-                }
-                
-                // Only update the content if it's not being edited
-                if (!messageElement.classList.contains('editing')) {
-                    messageElement.textContent = t;
-                }
-            });
+            // Only create elements for new messages
+            for (let i = lastDisplayedIndex + 1; i < filteredTranscription.length; i++) {
+                const t = filteredTranscription[i];
+                const messageElement = document.createElement('div');
+                messageElement.className = 'transcription-message';
+                messageElement.setAttribute('data-index', i);
+                messageElement.textContent = t;
+                messageElement.addEventListener('click', () => toggleMessageSelection(messageElement));
+                messageElement.addEventListener('dblclick', (e) => startEditing(e, messageElement, i));
+                fragment.appendChild(messageElement);
+            }
             
-            // Append new messages
+            // Append only new messages
             transcriptionDiv.appendChild(fragment);
-            
-            // Remove any excess elements
-            Array.from(transcriptionDiv.children).forEach((child, index) => {
-                if (index >= filteredTranscription.length) {
-                    transcriptionDiv.removeChild(child);
-                }
-            });
 
-            transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
+            // Update the last displayed index
+            lastDisplayedIndex = filteredTranscription.length - 1;
+
+            // Scroll to the bottom only if we're not editing or selecting
+            const editingOrSelectedElement = document.querySelector('.editing, .selected-message');
+            if (!editingOrSelectedElement) {
+                transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
+            }
         }
+
 
         function startEditing(event, element, index) {
             event.stopPropagation();
             if (element.classList.contains('editing')) return;
 
-            const text = element.textContent;
+            const fullText = element.textContent;
+            const [timestamp, ...contentParts] = fullText.split(': ');
+            const content = contentParts.join(': '); // Rejoin in case there were colons in the content
+
             element.classList.add('editing');
-            element.style.backgroundColor = '#ffffd0'; // Light yellow background
+            element.setAttribute('data-original-timestamp', timestamp);
+            element.style.backgroundColor = '#ffffd0';
             element.contentEditable = true;
+            
+            // Only make the content part editable
+            element.textContent = content;
+            
             element.focus();
 
-            // Place cursor at the click position
+            // Place cursor at the end of the content
             const range = document.createRange();
             const selection = window.getSelection();
-            range.setStart(element.childNodes[0], event.target.selectionStart);
-            range.collapse(true);
+            range.selectNodeContents(element);
+            range.collapse(false);
             selection.removeAllRanges();
             selection.addRange(range);
 
@@ -597,16 +694,29 @@
                 }
             });
         }
-
+   
         function finishEditing(element, index) {
             const newText = element.textContent;
+            let originalTimestamp = element.getAttribute('data-original-timestamp');
+            
+            // If there's no original timestamp, extract it from the current text
+            if (!originalTimestamp) {
+                const parts = transcriptionHistory[index].split(': ');
+                originalTimestamp = parts[0];
+            }
+
             element.classList.remove('editing');
-            element.style.backgroundColor = ''; // Remove background color
+            element.style.backgroundColor = '';
             element.contentEditable = false;
 
-            // Update the transcription history
-            const timestamp = transcriptionHistory[index].split(': ')[0];
-            transcriptionHistory[index] = `${timestamp}: ${newText}`;
+            // Update the transcription history, ensuring only one timestamp
+            transcriptionHistory[index] = `${originalTimestamp}: ${newText.replace(/^[\d:APM\s]+:\s*/, '')}`;
+
+            // Update the element's text content
+            element.textContent = transcriptionHistory[index];
+
+            // Remove data attribute
+            element.removeAttribute('data-original-timestamp');
 
             // Remove event listeners
             element.removeEventListener('blur', () => finishEditing(element, index));
@@ -660,8 +770,8 @@
                 if (event.data === "Transcription complete.") {
                     // Handle completion if needed
                 } else {
-                    const now = Date.now();
-                    const timeString = new Date(now).toLocaleTimeString();
+                    const now = new Date();
+                    const timeString = now.toLocaleTimeString();
                     const newText = `${timeString}: ${event.data}`;
                     
                     // Update transcription history
