@@ -298,6 +298,18 @@
             margin-bottom: 0;
         }
 
+        .transcription-message.editing {
+            background-color: #e8f0fe; /* Light blue background for editing mode */
+        }
+
+        .transcription-message input {
+            width: 100%;
+            border: none;
+            background-color: transparent;
+            font-family: inherit;
+            font-size: inherit;
+        }
+
         .selected-message {
             background-color: #7bbdc7; /* Light background for selected messages */
         }
@@ -536,10 +548,14 @@
                     messageElement.className = 'transcription-message';
                     messageElement.setAttribute('data-index', index);
                     messageElement.addEventListener('click', () => toggleMessageSelection(messageElement));
+                    messageElement.addEventListener('dblclick', (e) => startEditing(e, messageElement, index));
                     fragment.appendChild(messageElement);
                 }
                 
-                messageElement.textContent = t;
+                // Only update the content if it's not being edited
+                if (!messageElement.classList.contains('editing')) {
+                    messageElement.textContent = t;
+                }
             });
             
             // Append new messages
@@ -553,6 +569,48 @@
             });
 
             transcriptionDiv.scrollTop = transcriptionDiv.scrollHeight;
+        }
+
+        function startEditing(event, element, index) {
+            event.stopPropagation();
+            if (element.classList.contains('editing')) return;
+
+            const text = element.textContent;
+            element.classList.add('editing');
+            element.style.backgroundColor = '#ffffd0'; // Light yellow background
+            element.contentEditable = true;
+            element.focus();
+
+            // Place cursor at the click position
+            const range = document.createRange();
+            const selection = window.getSelection();
+            range.setStart(element.childNodes[0], event.target.selectionStart);
+            range.collapse(true);
+            selection.removeAllRanges();
+            selection.addRange(range);
+
+            element.addEventListener('blur', () => finishEditing(element, index));
+            element.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    finishEditing(element, index);
+                }
+            });
+        }
+
+        function finishEditing(element, index) {
+            const newText = element.textContent;
+            element.classList.remove('editing');
+            element.style.backgroundColor = ''; // Remove background color
+            element.contentEditable = false;
+
+            // Update the transcription history
+            const timestamp = transcriptionHistory[index].split(': ')[0];
+            transcriptionHistory[index] = `${timestamp}: ${newText}`;
+
+            // Remove event listeners
+            element.removeEventListener('blur', () => finishEditing(element, index));
+            element.removeEventListener('keydown', () => {});
         }
 
                 

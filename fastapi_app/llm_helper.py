@@ -1,6 +1,12 @@
 from openai import OpenAI
 
-SYS_PROMPT = """You are a helpful assistant in providing helpful answers in a technical interview.
+class OpenAILLM():
+    def __init__(self, model_name = "gpt-4o"):
+        self.api_key = None
+        self.model_name = model_name
+        self.agent = None
+        self.history = {"prev_transcriptions":[], "prev_answers":[]}
+        self.system_prompt = """You are a helpful assistant in providing helpful answers in a technical interview.
 
 You are given an transcription of an interview. Identitity of Interviewer and the Candidate is not clear so you have to look at the transcription and figure who is the interviewer and who is the answerer. 
 
@@ -19,14 +25,6 @@ MUST FOLLOW:
 4. Use Markdown format to properly display the heading, sub heading, bullet points, spacing etc etc and use MathJax to render equations properly
 5. Try to infer from the words which topic resembles from System Design, AI, ML,  NLP, Computer Vision, statistics, Python, Hugging-Face, scikit-learn, Opencv and Programming questions in Python if tere is a question apart from these topics. These could be synonym or homophones too"""
 
-
-class OpenAILLM():
-    def __init__(self, model_name = "gpt-4o"):
-        self.api_key = None
-        self.model_name = model_name
-        self.agent = None
-        self.system_prompt = SYS_PROMPT
-        self.history = {"prev_transcriptions":[], "prev_answers":[]}
 
     def login_and_create_client(self, api_key):
         self.api_key = api_key

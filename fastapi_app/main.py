@@ -53,15 +53,11 @@ class TranscriptionConfig(BaseModel):
 class LengthInSecConfig(BaseModel):
     lengthInSec: int
 
-
-@app.post("/update_length_in_sec")
-async def update_length_in_sec(config: LengthInSecConfig):
-    global LENGTH_IN_SEC, RATE, CHUNK_SIZE
-    LENGTH_IN_SEC = config.lengthInSec
-    CHUNK_SIZE = RATE * LENGTH_IN_SEC
-    return {"status": "updated", "lengthInSec": LENGTH_IN_SEC}
+class SystemPrompt(BaseModel):
+    system_prompt: str
 
 
+# ---- LLM End Points ----
 @app.post("/login")
 async def login(request: dict):
     api_key = request.get("api_key")
@@ -71,12 +67,15 @@ async def login(request: dict):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     
-@app.post("/update_speakers")
-async def update_speakers(config: TranscriptionConfig):
-    global NUM_SPEAKERS
-    NUM_SPEAKERS = config.numSpeakers
-    return {"status": "updated", "numSpeakers": NUM_SPEAKERS}
 
+@app.post("/update_system_prompt")
+async def update_system_prompt(prompt: SystemPrompt):
+    try:
+        LLM.system_prompt = prompt.system_prompt
+        return {"message": "System prompt updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
 
 @app.post("/get_answers")
 async def get_answers(request: TranscriptionRequest):
@@ -93,6 +92,20 @@ async def get_answers(request: TranscriptionRequest):
     
     return JSONResponse(content={"markdown": markdown_content})
 
+
+@app.post("/update_length_in_sec")
+async def update_length_in_sec(config: LengthInSecConfig):
+    global LENGTH_IN_SEC, RATE, CHUNK_SIZE
+    LENGTH_IN_SEC = config.lengthInSec
+    CHUNK_SIZE = RATE * LENGTH_IN_SEC
+    return {"status": "updated", "lengthInSec": LENGTH_IN_SEC}
+
+
+@app.post("/update_speakers")
+async def update_speakers(config: TranscriptionConfig):
+    global NUM_SPEAKERS
+    NUM_SPEAKERS = config.numSpeakers
+    return {"status": "updated", "numSpeakers": NUM_SPEAKERS}
 
 
 @app.websocket("/ws")

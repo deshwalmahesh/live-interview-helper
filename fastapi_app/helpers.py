@@ -12,7 +12,7 @@ def remove_blacklisted_words(string:str, ignore_case:bool=False) -> str:
         ignore_case: whether the match should be case insensitive
     return: Processed string
     """
-    REPLACEMENTS = {"Okay": "", "Thank you": "", "Hmm": ""}
+    REPLACEMENTS = {"Okay.": "", "Thank you": "", "Hmm": "", "I'm Sorry": ""}
     
     if not REPLACEMENTS: # Edge case that'd produce a funny regex and cause a KeyError
         return string
