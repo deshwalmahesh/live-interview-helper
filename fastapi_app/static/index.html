@@ -205,13 +205,13 @@
             padding-left: 1.2em;
         }
 
-        #answers li  #answers p #answers h1, #answers h2, #answers h3, #answers h4, #answers h5, #answers h6{
+        #answers li, #answers p, #answers h1, #answers h2, #answers h3, #answers h4, #answers h5, #answers h6 {
             margin-bottom: 0.17em;
         }
 
-        #answers li > ul, #answers li > ol #answers h3 > ul, #answers ul > h3{
-            margin-top: 0.12em;
-            margin-bottom: 0.12em;
+        #answers li > ul, #answers li > ol, #answers h3 > ul, #answers ul > h3 #answers p > ul #answers ul > p {
+            margin-top: 0.11em;
+            margin-bottom: 0.11em;
         }
 
         #answers code {
@@ -231,6 +231,68 @@
         }
 
         #answers blockquote {
+            border-left: 3px solid #ccc;
+            padding-left: 0.5em;
+            margin: 0.3em 0;
+            color: #666;
+        }
+
+        .answer-popup {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+
+        .popup-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-height: 80%;
+            overflow-y: auto;
+            line-height: 1.4;
+            font-family: Arial, sans-serif;
+            font-size: 17px;
+        }
+
+        .popup-content ul, .popup-content ol {
+            margin: 0.17em 0;
+            padding-left: 1.2em;
+        }
+
+        .popup-content li, .popup-content p, .popup-content h1, .popup-content h2, .popup-content h3, .popup-content h4, .popup-content h5, .popup-content h6 {
+            margin-bottom: 0.17em;
+        }
+
+        .popup-content li > ul, .popup-content li > ol, .popup-content h3 > ul, .popup-content ul > h3 .popup-content p > ul .popup-content ul > p{
+            margin-top: 0.11em;
+            margin-bottom: 0.11em;
+        }
+
+        .popup-content code {
+            background-color: #f0f0f0;
+            padding: 1px 3px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+
+        .popup-content pre {
+            background-color: #f0f0f0;
+            padding: 0.5em;
+            border-radius: 3px;
+            overflow-x: auto;
+            margin: 0.3em 0;
+        }
+
+        .popup-content blockquote {
             border-left: 3px solid #ccc;
             padding-left: 0.5em;
             margin: 0.3em 0;
@@ -403,7 +465,7 @@
     <div class="button-container">
         <div class="button-group">
             <button id="startBtn">Start</button>
-            <button id="stopBtn">Stop</button>
+            <button id="stopBtn" disabled>Stop</button>
             <button id="downloadBtn">Download Transcription</button>
             <button id="clearBtn">Clear</button>
         </div>
@@ -422,7 +484,7 @@
             <div id="transcription"></div>
         </div>
         <div class="panel">
-            <div class="panel-header">Answers</div>
+            <div class="panel-header">Answers (Click on the text below to open popup)</div>
             <div id="answers"></div>
         </div>
     </div>
@@ -460,6 +522,8 @@
         let lastDisplayedIndex = -1;
         let lastAnsweredIndex = -1; // Initialize to -1, meaning no messages have been answered yet
         let lastSelectedIndex = null;
+        let answerPopup;
+        let popupContent;
 
         async function loadConfig() {
             const response = await fetch('/base-config');
@@ -1079,11 +1143,39 @@
             resetUI();
         });
 
+        document.addEventListener('DOMContentLoaded', () => {
+            answerPopup = document.getElementById('answerPopup');
+            popupContent = document.getElementById('popupContent');
+            answersDiv.addEventListener('click', showAnswerPopup);
+            answerPopup.addEventListener('click', function(event) {
+                if (event.target === answerPopup) {
+                    answerPopup.style.display = 'none';
+                }
+            });
+        });
+
+
+        function showAnswerPopup() {
+            if (answerPopup && popupContent) {
+                popupContent.innerHTML = answersDiv.innerHTML;
+                answerPopup.style.display = 'block';
+                
+                // Re-run MathJax on the popup content
+                MathJax.typesetPromise([popupContent]).then(() => {
+                    // MathJax rendering is complete
+                });
+            } else {
+                console.error('Popup elements not found');
+            }
+        }
         // Initialize the UI
         updateGetAnswersButton();
         isClientMode = false;
         updateModeUI(isClientMode);
-        stopBtn.disabled = true;
     </script>
+
+    <div id="answerPopup" class="answer-popup">
+        <div id="popupContent" class="popup-content"></div>
+    </div>
 </body>
 </html>
