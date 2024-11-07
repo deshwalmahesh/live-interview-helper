@@ -26,7 +26,7 @@ NB_CHANNELS = 1
 RATE = 16000
 CHUNK_SIZE = RATE * LENGTH_IN_SEC # Just a function dependent on the LENGTH IN SEC
 
-NUM_SPEAKERS = 2
+NUM_SPEAKERS = 1 # 1 means it is disabled
 
 
 global audio_buffer, START, RESUMING

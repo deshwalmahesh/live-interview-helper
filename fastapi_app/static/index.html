@@ -383,7 +383,7 @@
         </div>
         <div class="input-group">
             <label for="numSpeakers">No. of Speakers:</label>
-            <input type="number" id="numSpeakers" min="1" max="10" value="2">
+            <input type="number" id="numSpeakers" min="1" max="10" value="1", title="If No of Speaker is 1, diarization is disabled">
         </div>
         <div class="input-group">
             <label for="lengthInSec">Length in Seconds:</label>
@@ -441,7 +441,7 @@
         let mediaRecorder;
         let audioChunks = [];
         let isClientMode = false;
-        let numSpeakers = 2;
+        let numSpeakers = 1;
         let openaiLogin = false;
         let lastDisplayedIndex = -1;
         let lastAnsweredIndex = -1; // Initialize to -1, meaning no messages have been answered yet

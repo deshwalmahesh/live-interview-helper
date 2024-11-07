@@ -95,6 +95,7 @@ diarization_pipeline = DiarizationPipeline.from_pretrained(
 diarization_pipeline.to(device)
 
 def diarize(audio_numpy_array, num_speakers, RATE):
+    if num_speakers < 2: return None
     diarization_result = diarization_pipeline({
         "waveform": torch.from_numpy(audio_numpy_array).unsqueeze(0),  # Can use .to(device) but pipeline handles that
         "sample_rate": RATE, "num_speakers": num_speakers})
