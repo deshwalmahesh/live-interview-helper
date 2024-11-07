@@ -195,46 +195,45 @@
             overflow-y: auto;
             background-color: white;
             border-radius: 0 0 5px 5px;
-            line-height: 1.6;
+            line-height: 1.4;
             font-family: Arial, sans-serif;
-        }
-
-        #answers h1, #answers h2, #answers h3, #answers h4, #answers h5, #answers h6 {
-            margin-top: 1em;
-            margin-bottom: 0.5em;
-        }
-
-        #answers p {
-            margin-bottom: 1em;
+            font-size: 17px;
         }
 
         #answers ul, #answers ol {
-            margin-bottom: 1em;
-            padding-left: 2em;
+            margin: 0.17em 0;
+            padding-left: 1.2em;
         }
 
-        #answers li {
-            margin-bottom: 0.5em;
+        #answers li  #answers p #answers h1, #answers h2, #answers h3, #answers h4, #answers h5, #answers h6{
+            margin-bottom: 0.17em;
+        }
+
+        #answers li > ul, #answers li > ol #answers h3 > ul, #answers ul > h3{
+            margin-top: 0.12em;
+            margin-bottom: 0.12em;
         }
 
         #answers code {
             background-color: #f0f0f0;
-            padding: 2px 4px;
-            border-radius: 4px;
+            padding: 1px 3px;
+            border-radius: 3px;
             font-family: monospace;
+            font-size: 0.9em;
         }
 
         #answers pre {
             background-color: #f0f0f0;
-            padding: 1em;
-            border-radius: 4px;
+            padding: 0.5em;
+            border-radius: 3px;
             overflow-x: auto;
+            margin: 0.3em 0;
         }
 
         #answers blockquote {
-            border-left: 4px solid #ccc;
-            padding-left: 1em;
-            margin-left: 0;
+            border-left: 3px solid #ccc;
+            padding-left: 0.5em;
+            margin: 0.3em 0;
             color: #666;
         }
 
@@ -387,7 +386,7 @@
             <button id="serverModeBtn" class="active">Backend Side Transcription</button>
             <button id="clientModeBtn">Frontend Side Transcription</button>
             <label for="systemPrompt">System Prompt (Shift + Enter for new line):</label>
-            <textarea id="systemPrompt" rows="15"></textarea>
+            <textarea id="systemPrompt" rows="25"></textarea>
         </div>
     </div>
     <h1 id="modeHeading">Backend Side (Mic + Speaker) Transcription</h1>
@@ -410,8 +409,8 @@
         </div>
         <div class="answers-group">
             <div class="input-group">
-                <label for="answerHistory" title="Previous Que-Ans messages history to use as context">Prev Ans Context:</label>
-                <input type="number" id="answerHistory" min="0" max="5" value="0" title="Previous Que-Ans messages history to use as context">
+                <label for="kAnswerHistory" title="Previous Que-Ans messages history to use as context">Prev Ans Context:</label>
+                <input type="number" id="kAnswerHistory" min="0" max="5" value="0" title="Previous Que-Ans messages history to use as context">
             </div>
             <button id="getAnswersBtn">Get Answers</button>
             <div id="spinner" class="spinner" style="display: none;"></div>
@@ -462,6 +461,18 @@
         let lastAnsweredIndex = -1; // Initialize to -1, meaning no messages have been answered yet
         let lastSelectedIndex = null;
 
+        async function loadConfig() {
+            const response = await fetch('/base-config');
+            const config = await response.json();
+            
+            // Set audio settings
+            document.getElementById('lengthInSec').value = config.audio.length_in_sec;
+            document.getElementById('systemPrompt').value = config.llm.system_prompt;
+            document.getElementById('kAnswerHistory').value = config.llm.k_answer_history
+        }
+
+        window.addEventListener('DOMContentLoaded', loadConfig); // Load the config
+
         hamburger.addEventListener('click', () => {
             sidebar.classList.toggle('expanded');
             body.classList.toggle('sidebar-expanded');
@@ -501,11 +512,10 @@
             }
         }
 
-
         document.getElementById('openaiKey').addEventListener('change', async (e) => {
             const apiKey = e.target.value;
             try {
-                const response = await fetch('/login', {
+                const response = await fetch('/openai-login', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -933,7 +943,7 @@
                 return;
             }
 
-            const kAnswerHistory = parseInt(document.getElementById('answerHistory').value);
+            const kAnswerHistory = parseInt(document.getElementById('kAnswerHistory').value);
 
             try {
                 const response = await fetch('/get_answers', {
@@ -956,12 +966,13 @@
                     markdown = processEquations(markdown);
                     
                     // Convert Markdown to HTML
-                    const htmlAnswer = marked.parse(markdown);
+                    let htmlAnswer = marked.parse(markdown);
                     answersDiv.innerHTML = htmlAnswer;
                     
                     // Update prevAnswersHistory
                     prevAnswersHistory.prev_transcriptions.push(messagesToSend.join('\n'));
                     prevAnswersHistory.prev_answers.push(markdown);
+
 
                     // Update lastAnsweredIndex
                     lastAnsweredIndex = transcriptionHistory.indexOf(messagesToSend[messagesToSend.length - 1]);

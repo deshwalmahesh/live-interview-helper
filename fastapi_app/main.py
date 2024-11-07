@@ -10,6 +10,7 @@ import logging
 from pydantic import BaseModel
 from helpers import transcribe, diarize, TRANSCRIPTION_MODEL_NAME, remove_blacklisted_words
 from llm_helper import OpenAILLM
+import json
 
 logging.basicConfig(level=logging.WARN)
 logger = logging.getLogger(__name__)
@@ -19,14 +20,18 @@ logger.info(f"{TRANSCRIPTION_MODEL_NAME} loaded")
 app = FastAPI()
 LLM = OpenAILLM() 
 
+with open('config.json') as config_file:
+    config = json.load(config_file)
+
 # Audio settings
 STEP_IN_SEC: int = 1
-LENGTH_IN_SEC: int = 7
-NB_CHANNELS = 1
-RATE = 16000
-CHUNK_SIZE = RATE * LENGTH_IN_SEC # Just a function dependent on the LENGTH IN SEC
+LENGTH_IN_SEC = config['audio']['length_in_sec']
+RATE = config['audio']['rate']
+NB_CHANNELS = config['audio']['num_channels']
+NUM_SPEAKERS = config['transcription']['num_speakers']
+CHUNK_SIZE = RATE * LENGTH_IN_SEC
 
-NUM_SPEAKERS = 1 # 1 means it is disabled
+LLM.system_prompt = config["llm"]['system_prompt']
 
 
 global audio_buffer, START, RESUMING
@@ -57,9 +62,13 @@ class LengthInSecConfig(BaseModel):
 class SystemPrompt(BaseModel):
     system_prompt: str
 
+# Base Config to set for Frontend
+@app.get("/base-config")
+async def get_config():
+    return JSONResponse(content=config)
 
 # ---- LLM End Points ----
-@app.post("/login")
+@app.post("/openai-login")
 async def login(request: dict):
     api_key = request.get("api_key")
     try:
