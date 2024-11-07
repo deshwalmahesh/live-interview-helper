@@ -269,6 +269,21 @@
         .answers-group {
             display: flex;
             align-items: center;
+            gap: 10px;
+        }
+
+        .answers-group .input-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .answers-group .input-group input {
+            width: 40px;
+            padding: 5px;
+            border: 1px solid #3498db;
+            border-radius: 5px;
+            font-size: 16px;
         }
 
         #spinner {
@@ -398,6 +413,10 @@
             <button id="clearBtn">Clear</button>
         </div>
         <div class="answers-group">
+            <div class="input-group">
+                <label for="answerHistory" title="Previous Que-Ans messages history to use as context">Prev Ans Context:</label>
+                <input type="number" id="answerHistory" min="0" max="5" value="0" title="Previous Que-Ans messages history to use as context">
+            </div>
             <button id="getAnswersBtn">Get Answers</button>
             <div id="spinner" class="spinner" style="display: none;"></div>
         </div>
@@ -936,6 +955,8 @@
                 return;
             }
 
+            const kAnswerHistory = parseInt(document.getElementById('answerHistory').value);
+
             try {
                 const response = await fetch('/get_answers', {
                     method: 'POST',
@@ -944,7 +965,8 @@
                     },
                     body: JSON.stringify({
                         transcription: messagesToSend,
-                        previous_answers_history: prevAnswersHistory
+                        previous_answers_history: prevAnswersHistory,
+                        k_answer_history: kAnswerHistory
                     }),
                 });
 

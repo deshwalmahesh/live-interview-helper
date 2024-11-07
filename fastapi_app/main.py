@@ -46,6 +46,7 @@ class PreviousAnswersHistory(BaseModel):
 class TranscriptionRequest(BaseModel):
     transcription: List[str]
     previous_answers_history: PreviousAnswersHistory
+    k_answer_history: int
 
 class TranscriptionConfig(BaseModel):
     numSpeakers: int
@@ -84,9 +85,11 @@ async def get_answers(request: TranscriptionRequest):
     """
     transcription_history = str(request.transcription) # We need to properly format it
     previous_answers_history = request.previous_answers_history # Add functionality to use it in calls, if needed
+    k_answer_history = request.k_answer_history # No of previous messages to use as answer history
     
     logger.info(f"Current Transcription History: {transcription_history}")
     logger.info(f"Previous Answers History: {previous_answers_history}")
+    logger.info(f"K History: {k_answer_history}")
 
     markdown_content = LLM.hit_llm(transcription_history)
     
