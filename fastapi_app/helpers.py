@@ -1,5 +1,5 @@
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
-from pyannote.audio import Pipeline as DiarizationPipeline
+# from pyannote.audio import Pipeline as DiarizationPipeline
 import asyncio, re, torch
 
 def remove_blacklisted_words(string:str, ignore_case:bool=False) -> str:
@@ -84,20 +84,23 @@ async def transcribe(audio_data_array, RATE):
     )
 
 
-# ---- Speaker Diarization ----
+# ---- Speaker Diarization ---- Can't be Done for Live audio
+
 
 # NOTE: If you lodd it first time, you need to have Accept all clauses foe the model and add a variable
 # use_auth_token="HUGGINGFACE_ACCESS_TOKEN_GOES_HERE")
-diarization_pipeline = DiarizationPipeline.from_pretrained(
-  "pyannote/speaker-diarization-3.1")
+# diarization_pipeline = DiarizationPipeline.from_pretrained(
+#   "pyannote/speaker-diarization-3.1")
 
 
-diarization_pipeline.to(device)
+# diarization_pipeline.to(device)
 
-def diarize(audio_numpy_array, num_speakers, RATE):
-    if num_speakers < 2: return None
-    diarization_result = diarization_pipeline({
-        "waveform": torch.from_numpy(audio_numpy_array).unsqueeze(0),  # Can use .to(device) but pipeline handles that
-        "sample_rate": RATE, "num_speakers": num_speakers})
-    return diarization_result
+# def diarize(audio_numpy_array, num_speakers, RATE):
+#     if num_speakers < 2: return None
+#     diarization_result = diarization_pipeline({
+#         "waveform": torch.from_numpy(audio_numpy_array).unsqueeze(0),  # Can use .to(device) but pipeline handles that
+#         "sample_rate": RATE, "num_speakers": num_speakers})
+#     return diarization_result
+
+def diarize(audio_numpy_array, num_speakers, RATE): return None
 

@@ -103,14 +103,6 @@ async def update_length_in_sec(config: LengthInSecConfig):
     CHUNK_SIZE = RATE * LENGTH_IN_SEC
     return {"status": "updated", "lengthInSec": LENGTH_IN_SEC}
 
-
-@app.post("/update_speakers")
-async def update_speakers(config: TranscriptionConfig):
-    global NUM_SPEAKERS
-    NUM_SPEAKERS = config.numSpeakers
-    return {"status": "updated", "numSpeakers": NUM_SPEAKERS}
-
-
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
