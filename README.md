@@ -1,22 +1,72 @@
-# Live Real Time Audio Transcription 
-It uses:
-1. OpenAI's [Whisper-large-v3-turbo](https://huggingface.co/openai/whisper-large-v3-turbo)
-2. FastAPI + JavaScript
+# Interview  (cheating) Helper
+Okay! I admit it's cheating but if you put restrictions to artist's thought process, you better stop calling it art :grin:
 
-# What's new then?
-It can transcribe your data, dump it and then as you can see query it (TO DO). This app has 2 modes of working:
-1. You can use your Browser's mic to send audio stream to the backend to get it transcribed in real time. Audio from this approach is isolated.
-2. You can use system's audio using `pyaudio`. What do I mean by this? It means that the frontend is just there to initiate the Websocket and show you the functionality. By using `pyaudio`, if you are on default mic + speaker, it uses both audios so if you are in a meeting, you can transcribe that. You can use a Speaker Diarization to detect who said what and when to transcribe your Google Meet, Zoom and any other meeting. You don't even need to make a bot of it.
+# What does it do?
+It helps you get answer to your live interview question be it technical or non technical in ***Real Time*** with just a single click.
 
-As you can see there is `Get Answer` button which is meant for later greater purpose :)
+## Functionalities
+- [x] On device Real Time Transcription using HF pipeline (uses`whisper-large-v3-turbo`) so you can use any any valid transcription model
+- [x] Double on any transcription to edit it
+- [x] Option to select 1+ specific transcription texts. Use `Shift + Click` to select messages from Text-A till Text-B
+- [x] Smoothly renders `LaTex` equations and Markdown (Heading, subheading, Lists etc). Click on `Answers` panel to open a bigger popup
+- [x] Option to set: OpenAI key, Custom Base Prompt, Audio Batch length, Transcription Language
+- [x] Control to Start, Stop, Resume, Clear and Download Transcriptions
+- [x] Add custom words and phrases to be removed from transcription (silence, noise, garbage words etc)
+
+# Getting started
+
+1. It is tested on `Python 3.12` so install that first
+2. Install [`PyAudio`](https://pypi.org/project/PyAudio/) for your system (it is tested on Mac so should work for linux too. Not sure about Windows)
+3. Get you [OpenAI API Key](https://medium.com/@lorenzozar/how-to-get-your-own-openai-api-key-f4d44e60c327)
+4. Clone this repo or download the zip file
+5. Open Terminal and navigate to the location which contains `requirements.txt`
+6. Install requirements using `pip install -r requirements.txt`
+
+
+## How to use?
+1. Go base path in your terminal where `main.py` is present and run the command: `fastapi dev main.py` (you're running on your local so don't worry about `dev` or `uvicorn` etc)
+2. Go to `127.0.0.1:8000` in your browser
+3. Click on `Start` button to get the transcriptions. You can use `Stop`, `Resume`, `Clear` and `Download` for the transcriptions
+4. Set `OpanAI` API key. Without this, you won't be able to use `Get Answers`
+
+## Parameters
+All of the useful parameters can be set using `config.json`. Also, there is a functionality to change those at the home page itself.
+
+- Click on the left (collapsed) side panel to set Base Prompt for the LLM according to your interview style, topic etc.
+- Add `OpenAI` key as without it you can't use Get Answers functionality
+- Set `Audio Chunk Length` according to your system as well as your speech speed. Value of `1` will be process 1 second audio at a time thus it'll be faster but won't have much context. Value of 30 will be delayed but will have more context
+- Set `Prev Ans Context` as needed. It means how many previous message history to use. This won't be needed usually but in case you have followup questions and want to give context to LLM
+
+
+# How does it do it?
+1. It captures live stream your default Speaker and default Mic Audio
+2. Then it transcribes and Diarize (optional) the audio audio stream to get text stream
+3. It displays the transcription with timestamps on the (left) panel
+4. You can choose which texts to send to the LLM with clicks. You can also edit the transcriptions.
+4. With a single click to the `Get Answers` button, it fetches the answers to the questions fro the conversation and displays answers on the (right) panel :bowtie:
+
 
 # What's Next 🛺
-- [ ] Implement Speaker Diarization in parallel async mode and merge with Transcription
-- [ ] Add Flexibility to get Transcription Window, Number of Speakers, Language etc etc
-- [ ] Add Silence Word, phrases blacklist
-- [ ] Add functionality for `Get Answer` :bowtie:
+- [ ] Improve Transcription Speed using further tricks like quantization and efficient frameworks (Ollama, TensorRT etc)
+- [ ] Add the functionality to use attached headphones etc
+- [ ] Find a way to record Mic and Speaker seperately (in parallel) so we can perfectly find who's interviewer and who's candidate
+- [ ] Support for Windows
+- [ ] Prompt Optimization and Memory management for previous Que-Ans history
+- [ ] Add support to choose Open Source and propriety LLMs (Anthropic)
+- [ ] Integrate transcription APIs and other Open Source Models
 
+
+# Known Limitations
+1. It is tested on MacOS (M3) and will be good to go for Linux too. For Windows, you need a Windows patch of `pyaudio`
+2. It use your default mic and speaker which means if you attach a headphone, it might not work. Haven't tested yet
+3. Transcription speed can vary depending on your system. It gave me amazing results with M3 chip but for CPU only, it'll be very slow so you need a transcription API or a smaller model
+4. There are some small issues with `MathJax` for equation rendering due to LLM output format
    
-### Fun Fact
+# Random Fact (that you definitely don't care)
 
 I have no idea of how JavScript works still I managed to build the frontend somehow. All thanks to `Claude Sonnet 3.5` (Had I given someone the money I spent in prompts, it'd still be way lesser but hey! :feelsgood:)
+
+# Help & Support
+If you happen to know solutions for 2nd and 3rd `What's Next` Or you have free time to add the other functionalities, please feel free to add those and open a requet. Highly appreciated.
+
+Please open any feature requests and issues which you face. Will try my best to resolve atlest backend ones.

@@ -32,6 +32,7 @@ NUM_SPEAKERS = config['transcription']['num_speakers']
 CHUNK_SIZE = RATE * LENGTH_IN_SEC
 
 LLM.system_prompt = config["llm"]['system_prompt']
+LLM.model_name = config["llm"]['model_name']
 
 
 global audio_buffer, START, RESUMING
