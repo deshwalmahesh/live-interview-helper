@@ -444,7 +444,7 @@
         let numSpeakers = 2;
         let openaiLogin = false;
         let lastDisplayedIndex = -1;
-
+        let lastAnsweredIndex = -1; // Initialize to -1, meaning no messages have been answered yet
 
         hamburger.addEventListener('click', () => {
             sidebar.classList.toggle('expanded');
@@ -566,14 +566,17 @@
             if (confirm("Are you sure you want to clear all history? This action cannot be undone.")) {
                 // Clear transcription history
                 transcriptionHistory = [];
-                updateTranscriptionDisplay();
-
+                
+                // Clear transcription panel
+                transcriptionDiv.innerHTML = '';
+                
                 // Clear answers panel
                 answersDiv.innerHTML = '';
-
-                // Clear all selections
-                clearAllSelections();
-
+                
+                // Reset related variables
+                lastDisplayedIndex = -1;
+                lastAnsweredIndex = -1;
+                
                 console.log('History cleared');
             }
         });
@@ -892,12 +895,17 @@
             getAnswersBtn.disabled = true;
 
             let selectedMessages = getSelectedMessages();
+            let messagesToSend;
+
             if (selectedMessages.length === 0) {
-                selectedMessages = getRecentTranscriptions();
+                // If no messages are selected, send all messages since the last answered index
+                messagesToSend = transcriptionHistory.slice(lastAnsweredIndex + 1);
+            } else {
+                messagesToSend = selectedMessages;
             }
             
-            if (selectedMessages.length === 0) {
-                alert("No transcription history available.");
+            if (messagesToSend.length === 0) {
+                alert("No new transcriptions available.");
                 spinner.style.display = 'none';
                 getAnswersBtn.disabled = false;
                 return;
@@ -910,7 +918,7 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        transcription: selectedMessages,
+                        transcription: messagesToSend,
                         previous_answers_history: prevAnswersHistory
                     }),
                 });
@@ -927,8 +935,11 @@
                     answersDiv.innerHTML = htmlAnswer;
                     
                     // Update prevAnswersHistory
-                    prevAnswersHistory.prev_transcriptions.push(selectedMessages.join('\n'));
+                    prevAnswersHistory.prev_transcriptions.push(messagesToSend.join('\n'));
                     prevAnswersHistory.prev_answers.push(markdown);
+
+                    // Update lastAnsweredIndex
+                    lastAnsweredIndex = transcriptionHistory.indexOf(messagesToSend[messagesToSend.length - 1]);
 
                     // Scroll to the top of the answer panel
                     answersDiv.scrollTop = 0;
