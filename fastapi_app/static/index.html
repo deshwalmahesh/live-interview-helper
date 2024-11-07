@@ -445,6 +445,7 @@
         let openaiLogin = false;
         let lastDisplayedIndex = -1;
         let lastAnsweredIndex = -1; // Initialize to -1, meaning no messages have been answered yet
+        let lastSelectedIndex = null;
 
         hamburger.addEventListener('click', () => {
             sidebar.classList.toggle('expanded');
@@ -577,6 +578,8 @@
                 lastDisplayedIndex = -1;
                 lastAnsweredIndex = -1;
                 
+                lastSelectedIndex = null;
+                
                 console.log('History cleared');
             }
         });
@@ -600,8 +603,30 @@
             };
         }
 
-        function toggleMessageSelection(element) {
-            element.classList.toggle('selected-message');
+        function toggleMessageSelection(element, event) {
+            const currentIndex = parseInt(element.getAttribute('data-index'));
+
+            if (event.shiftKey && lastSelectedIndex !== null) {
+                // Select range
+                const start = Math.min(lastSelectedIndex, currentIndex);
+                const end = Math.max(lastSelectedIndex, currentIndex);
+                selectMessageRange(start, end);
+            } else {
+                // Toggle single message
+                element.classList.toggle('selected-message');
+                lastSelectedIndex = element.classList.contains('selected-message') ? currentIndex : null;
+            }
+        }
+
+        function selectMessageRange(start, end) {
+            const messages = transcriptionDiv.querySelectorAll('.transcription-message');
+            messages.forEach(msg => {
+                const index = parseInt(msg.getAttribute('data-index'));
+                if (index >= start && index <= end) {
+                    msg.classList.add('selected-message');
+                }
+            });
+            lastSelectedIndex = end;
         }
 
         function getSelectedMessages() {
@@ -644,7 +669,7 @@
                 messageElement.className = 'transcription-message';
                 messageElement.setAttribute('data-index', i);
                 messageElement.textContent = t;
-                messageElement.addEventListener('click', () => toggleMessageSelection(messageElement));
+                messageElement.addEventListener('click', (event) => toggleMessageSelection(messageElement, event));
                 messageElement.addEventListener('dblclick', (e) => startEditing(e, messageElement, i));
                 fragment.appendChild(messageElement);
             }
