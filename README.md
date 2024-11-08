@@ -10,8 +10,8 @@ https://github.com/user-attachments/assets/aa053824-b0c3-46b8-9ca5-8067e8b85482
 
 ## Functionalities
 - [x] On device Real Time Transcription using HF pipeline (uses`whisper-large-v3-turbo`) so you can use any any valid transcription model
-- [x] Double on any transcription to edit it
-- [x] Option to select 1+ specific transcription texts. Use `Shift + Click` to select messages from Text-A till Text-B
+- [x] Double click on any transcription to edit it
+- [x] Option to select 0 or more transcription texts. Use `Shift + Click` to select messages from Text-A till Text-B
 - [x] Smoothly renders `LaTex` equations and Markdown (Heading, subheading, Lists etc). Click on `Answers` panel to open a bigger popup
 - [x] Option to set: OpenAI key, Custom Base Prompt, Audio Batch length, Transcription Language
 - [x] Control to Start, Stop, Resume, Clear and Download Transcriptions
