@@ -1,8 +1,12 @@
-# Interview  (cheating) Helper
-Okay! I admit it's cheating but if you put restrictions to artist's thought process, you better stop calling it art :grin:
+# Interview (cheating) Helper
+Okay! I admit it's cheating in live interview more than helping but if you put conditions to artist's thought process, you better stop calling it an art :grin:
 
 # What does it do?
 It helps you get answer to your live interview question be it technical or non technical in ***Real Time*** with just a single click.
+
+
+https://github.com/user-attachments/assets/aa053824-b0c3-46b8-9ca5-8067e8b85482
+
 
 ## Functionalities
 - [x] On device Real Time Transcription using HF pipeline (uses`whisper-large-v3-turbo`) so you can use any any valid transcription model
