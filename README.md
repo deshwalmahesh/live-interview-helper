@@ -51,13 +51,15 @@ All of the useful parameters can be set using `config.json`. Also, there is a fu
 
 
 # What's Next 🛺
-- [ ] Improve Transcription Speed using further tricks like quantization and efficient frameworks (Ollama, TensorRT etc)
+- [ ] Improve Transcription Speed using further tricks like quantization and efficient frameworks (Ollama, TensorRT etc) and LLM speed using Streaming and option to automatically fetching answers in background after every `N` seconds
 - [ ] Add the functionality to use attached headphones etc
-- [ ] Find a way to record Mic and Speaker seperately (in parallel) so we can perfectly find who's interviewer and who's candidate
+- [ ] Find a way to record Mic and Speaker seperately (in parallel) so we can perfectly find who's interviewer and who's candidate (Virtual Sound Cards?)
 - [ ] Support for Windows
 - [ ] Prompt Optimization and Memory management for previous Que-Ans history
 - [ ] Add support to choose Open Source and propriety LLMs (Anthropic)
 - [ ] Integrate transcription APIs and other Open Source Models
+- [ ] Use `KaTex` for better Equation Rendering
+- [ ] Implement new functionalities like: use of previous Answer history and summarization, Question Extraction in background, Follow-up question mechanism, multi level prompts etc
 
 
 # Known Limitations
