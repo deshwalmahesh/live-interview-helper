@@ -1,4 +1,4 @@
-# Interview (cheating) Helper
+# Live Interview (~cheating~) Helper
 Okay! I admit it's cheating in live interview more than helping but if you put conditions to artist's thought process, you better stop calling it an art :grin:
 
 # What does it do?
