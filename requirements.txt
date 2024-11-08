@@ -8,3 +8,4 @@ tiktoken==0.7.0
 torch==2.5.0
 torchaudio==2.5.0
 transformers==4.45.2
+uvicorn==0.32.0
