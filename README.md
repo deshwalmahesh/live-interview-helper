@@ -2,7 +2,7 @@
 Okay! I admit it's cheating in live interview more than helping but if you put conditions to artist's thought process, you better stop calling it an art :grin:
 
 # What does it do?
-It helps you get answer to your live interview question be it technical or non technical in ***Real Time*** with just a single click.
+It Captures Audio from your mic and Speaker in an interview and helps you get answer to your live interview question be it technical or non technical in ***Real Time*** with just a single click.
 
 
 https://github.com/user-attachments/assets/aa053824-b0c3-46b8-9ca5-8067e8b85482
