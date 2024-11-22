@@ -8,12 +8,13 @@
     },
 
     "audio": {
-      "length_in_sec": 7,
+      "length_in_sec": 5,
       "rate": 16000,
       "num_channels": 1
     },
 
     "transcription": {
-      "num_speakers": 1
+      "num_speakers": 1,
+      "API_ENDPOINT": "https://2127-35-186-148-235.ngrok-free.app"
     }
   }

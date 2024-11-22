@@ -729,7 +729,12 @@
         }
 
         function updateTranscriptionDisplay() {
-            const filteredTranscription = transcriptionHistory.filter(t => t.trim() !== '');
+            // Filter out empty or whitespace-only transcriptions and those with length < 6
+            const filteredTranscription = transcriptionHistory.filter(t => {
+                // Extract the actual transcription text after the timestamp
+                const transcriptionText = t.split(': ').slice(1).join(': ').trim();
+                return transcriptionText.length >= 6;
+            });
             
             // Create a document fragment to hold new messages
             const fragment = document.createDocumentFragment();
@@ -872,15 +877,18 @@
                 } else {
                     const now = new Date();
                     const timeString = now.toLocaleTimeString();
-                    const newText = `${timeString}: ${event.data}`;
                     
-                    // Update transcription history
-                    transcriptionHistory.push(newText);
-                    
-                    // Update the display
-                    updateTranscriptionDisplay();
-
-                    console.log('Current transcription history:', transcriptionHistory);
+                    // Only add transcriptions that have meaningful content
+                    const transcriptionText = event.data.trim();
+                    if (transcriptionText.length >= 4) {
+                        const newText = `${timeString}: ${transcriptionText}`;
+                        
+                        // Update transcription history
+                        transcriptionHistory.push(newText);
+                        
+                        // Update the display
+                        updateTranscriptionDisplay();
+                    }
                 }
             };
 
