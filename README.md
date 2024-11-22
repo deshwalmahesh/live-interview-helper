@@ -9,7 +9,7 @@ https://github.com/user-attachments/assets/aa053824-b0c3-46b8-9ca5-8067e8b85482
 
 
 ## Functionalities
-- [x] On device Real Time Transcription using HF pipeline (uses`whisper-large-v3-turbo`) so you can use any any valid transcription model
+- [x] *Free COLAB* GPU support OR On device Real Time Transcription using HF pipeline (uses`whisper-large-v3-turbo`) so you can use any any valid transcription model
 - [x] Double click on any transcription to edit it
 - [x] Option to select 0 or more transcription texts. Use `Shift + Click` to select messages from Text-A till Text-B
 - [x] Smoothly renders `LaTex` equations and Markdown (Heading, subheading, Lists etc). Click on `Answers` panel to open a bigger popup
@@ -26,8 +26,14 @@ https://github.com/user-attachments/assets/aa053824-b0c3-46b8-9ca5-8067e8b85482
 5. Open Terminal and navigate to the location which contains `requirements.txt`
 6. Install requirements using `pip install -r requirements.txt`
 
+## What if you don't have GPU?
+1. Upload `Colab_Transcription.ipynb` to Colab
+2. Select GPU Environment and follow every instruction
+3. Come here and follow the below instructions 
 
-## How to use?
+It'll use Colab GPU to transcrive audio for you in real-time, on your local :)
+
+## How to run App Locally?
 1. Go base path in your terminal where `main.py` is present and run the command: `fastapi dev main.py` (you're running on your local so don't worry about `dev` or `uvicorn` etc)
 2. Go to `127.0.0.1:8000` in your browser
 3. Click on `Start` button to get the transcriptions. You can use `Stop`, `Resume`, `Clear` and `Download` for the transcriptions

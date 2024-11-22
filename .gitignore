@@ -6,7 +6,7 @@
 *.pt
 *.bin
 __pycache__/*
-*.ipynb
+# *.ipynb
 *.cpython
 *.pyc
 *.DS_Store/*

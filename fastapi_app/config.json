@@ -15,6 +15,6 @@
 
     "transcription": {
       "num_speakers": 1,
-      "API_ENDPOINT": "https://2127-35-186-148-235.ngrok-free.app"
+      "API_ENDPOINT": ""
     }
   }
