@@ -8,17 +8,21 @@ import pyaudio
 import numpy as np
 import logging
 from pydantic import BaseModel
-from helpers import transcribe, diarize, TRANSCRIPTION_MODEL_NAME, remove_blacklisted_words
+from helpers import Transcription, remove_blacklisted_words, diarize
 from llm_helper import OpenAILLM
 import json
+import aiohttp
+from base64 import b64encode
+import time
+
 
 logging.basicConfig(level=logging.WARN)
 logger = logging.getLogger(__name__)
 
-logger.info(f"{TRANSCRIPTION_MODEL_NAME} loaded")
 
 app = FastAPI()
-LLM = OpenAILLM() 
+LLM = OpenAILLM()
+TRNS = Transcription()
 
 with open('config.json') as config_file:
     config = json.load(config_file)
@@ -30,6 +34,12 @@ RATE = config['audio']['rate']
 NB_CHANNELS = config['audio']['num_channels']
 NUM_SPEAKERS = config['transcription']['num_speakers']
 CHUNK_SIZE = RATE * LENGTH_IN_SEC
+API_ENDPOINT = config["transcription"]["API_ENDPOINT"]
+
+
+if API_ENDPOINT: API_ENDPOINT = API_ENDPOINT.rstrip("/") + "/transcribe"
+else: TRNS.load_pipeline() # Don't use cloud 
+
 
 LLM.system_prompt = config["llm"]['system_prompt']
 LLM.model_name = config["llm"]['model_name']
@@ -62,6 +72,29 @@ class LengthInSecConfig(BaseModel):
 
 class SystemPrompt(BaseModel):
     system_prompt: str
+
+
+async def send_audio_to_cloud(audio_data: bytes) -> dict:
+    """
+    Send audio data to cloud API for transcription.
+    """
+    # Convert audio bytes to base64 for sending over HTTP
+    audio_base64 = b64encode(audio_data).decode('utf-8')
+    
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.post(
+                API_ENDPOINT,  # API_ENDPOINT should be defined at module level
+                json={'audio_data': audio_base64}
+            ) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    raise Exception(f"API request failed with status {response.status}")
+        except Exception as e:
+            logging.error(f"Error sending audio to cloud: {str(e)}")
+            raise
+
 
 # Base Config to set for Frontend
 @app.get("/base-config")
@@ -158,27 +191,43 @@ async def consumer_task():
         try:
             if audio_buffer.qsize() >= LENGTH_IN_SEC:
                 audio_data_to_process = b''.join([await audio_buffer.get() for _ in range(LENGTH_IN_SEC)])
-                audio_data_array = np.frombuffer(audio_data_to_process, np.int16).astype(np.float32) / 32768.0
-
-                logger.info(f"LENGTH_IN_SEC: {LENGTH_IN_SEC} || CHUNK_SIZE: {CHUNK_SIZE}")
-
-                transcription_task = asyncio.create_task(transcribe(audio_data_array, RATE = RATE))
-
-                # Run diarization in a separate thread as it's giving error in async mode
-                logger.info(f"Current No of Speakers: {NUM_SPEAKERS}")
-                diarization_task = asyncio.create_task(
-                    asyncio.to_thread(diarize, audio_data_array, NUM_SPEAKERS, RATE))
-
-                # Wait for both tasks to complete
-                transcription, diarization = await asyncio.gather(transcription_task, diarization_task)
-                logger.info(f"DIARIZATION:\n{diarization}")
                 
+                if API_ENDPOINT is not None:  # Send audio data to cloud API
+                    try:
+                        start = time.time()
+                        transcription = await send_audio_to_cloud(audio_data_to_process)
+                        TRNS.all_latency.append(time.time() - start)
 
-                transcription_text = remove_blacklisted_words(transcription["text"]).rstrip(". ?!")
+                        if transcription:
+                            transcription_text = remove_blacklisted_words(transcription["text"].rstrip(". ?!"))
+                    except Exception as e:
+                        logger.error(f"Cloud transcription failed: {str(e)}")
+                        transcription_text = ""
+                
+                else:
+                    audio_data_array = np.frombuffer(audio_data_to_process, np.int16).astype(np.float32) / 32768.0
 
-                if transcription_text:
-                    await send_transcription(transcription_text)
-                    logger.info(f"Sent transcription: {transcription_text}")
+                    logger.info(f"LENGTH_IN_SEC: {LENGTH_IN_SEC} || CHUNK_SIZE: {CHUNK_SIZE}")
+
+                    transcription_task = asyncio.create_task(TRNS.transcribe(audio_data_array, RATE = RATE))
+
+                    # Run diarization in a separate thread as it's giving error in async mode
+                    logger.info(f"Current No of Speakers: {NUM_SPEAKERS}")
+                    diarization_task = asyncio.create_task(
+                        asyncio.to_thread(diarize, audio_data_array, NUM_SPEAKERS, RATE))
+
+                    # Wait for both tasks to complete
+                    transcription, diarization = await asyncio.gather(transcription_task, diarization_task)
+                    logger.info(f"DIARIZATION:\n{diarization}")
+                    
+                
+                    if transcription:
+                        transcription_text = remove_blacklisted_words(transcription["text"]).rstrip(". ?!")
+
+
+                await send_transcription(transcription_text)
+                logger.info(f"Sent transcription: {transcription_text}")
+                logging.info(TRNS.latency_stats())
                 
             else:
                 await asyncio.sleep(0.1)
@@ -244,7 +293,7 @@ async def client_consumer_task():
             chunk = await client_audio_buffer.get()
             audio_data_array = np.frombuffer(chunk, np.int16).astype(np.float32) / 32768.0
 
-            transcription = await transcribe(audio_data_array)
+            transcription = await TRNS.transcribe(audio_data_array)
             transcription_text = transcription["text"].rstrip(".")
 
             if transcription_text:

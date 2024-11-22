@@ -1,6 +1,8 @@
 from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
 # from pyannote.audio import Pipeline as DiarizationPipeline
 import asyncio, re, torch
+import numpy as np
+import time
 
 def remove_blacklisted_words(string:str, ignore_case:bool=False) -> str:
     """
@@ -12,7 +14,7 @@ def remove_blacklisted_words(string:str, ignore_case:bool=False) -> str:
         ignore_case: whether the match should be case insensitive
     return: Processed string
     """
-    REPLACEMENTS = {"Okay.": "", "Thank you": "", "Hmm": "", "I'm Sorry": ""}
+    REPLACEMENTS = {"Okay": "", "Thank you": "", "Hmm": "", "I'm Sorry": "", "I'm going to go":""}
     
     if not REPLACEMENTS: # Edge case that'd produce a funny regex and cause a KeyError
         return string
@@ -57,31 +59,45 @@ device = torch.device(device_name)
 torch_dtype = torch.bfloat16
 
 # ------ Transcription Helpers ------
-transcription_model = AutoModelForSpeechSeq2Seq.from_pretrained(
-    TRANSCRIPTION_MODEL_NAME, torch_dtype=torch_dtype, low_cpu_mem_usage=True
-)
-transcription_model.to(device)
+class Transcription:
+    def __init__(self):
+        self.all_latency = []
 
-processor = AutoProcessor.from_pretrained(TRANSCRIPTION_MODEL_NAME)
+    def latency_stats(self):
+        return np.mean(self.all_latency)
 
-transcription_pipeline = pipeline(
-    "automatic-speech-recognition",
-    model=transcription_model,
-    tokenizer=processor.tokenizer,
-    feature_extractor=processor.feature_extractor,
-    chunk_length_s = 30, #  min(LENGTH_IN_SEC, 30)
-    torch_dtype=torch_dtype,
-    device=device,
-)
+    def load_pipeline(self):
+
+        transcription_model = AutoModelForSpeechSeq2Seq.from_pretrained(
+            TRANSCRIPTION_MODEL_NAME, torch_dtype=torch_dtype, low_cpu_mem_usage=True)
+        
+        transcription_model.to(device)
+
+        processor = AutoProcessor.from_pretrained(TRANSCRIPTION_MODEL_NAME)
+
+        self.transcription_pipeline = pipeline(
+            "automatic-speech-recognition",
+            model=transcription_model,
+            tokenizer=processor.tokenizer,
+            feature_extractor=processor.feature_extractor,
+            chunk_length_s = 30, #  min(LENGTH_IN_SEC, 30)
+            torch_dtype=torch_dtype,
+            device=device,
+        )
+
+        print(f"Loaded {TRANSCRIPTION_MODEL_NAME}")
 
 
-async def transcribe(audio_data_array, RATE):
-    return await asyncio.to_thread(
-        transcription_pipeline,
-        {"array": audio_data_array, "sampling_rate": RATE},
-        return_timestamps=True,
-        generate_kwargs={"language": "english", "return_timestamps": True, "max_new_tokens": MAX_SENTENCE_CHARACTERS}
-    )
+    async def transcribe(self,audio_data_array, RATE):
+        start = time.time()
+        res = await asyncio.to_thread(
+            self.transcription_pipeline,
+            {"array": audio_data_array, "sampling_rate": RATE},
+            return_timestamps=True,
+            generate_kwargs={"language": "english", "return_timestamps": True, "max_new_tokens": MAX_SENTENCE_CHARACTERS}
+        )
+        self.all_latency.append(time.time() - start)
+        return res
 
 
 # ---- Speaker Diarization ---- Can't be Done for Live audio
