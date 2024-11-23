@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?version=4.8.0&features=es6"></script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -181,7 +181,7 @@
             font-weight: bold;
         }
 
-        #customInput {
+        #customQuery {
             width: 300px;
             max-width: 300px;
             height: 100%;
@@ -392,6 +392,10 @@
             background-color: #1e8449; /* Darker green color when clicked */
         }
 
+        #screenshotBtn{
+            background-color: #c14fc5;
+        }
+
         #getAnswersBtn {
             background-color: #27ae60;
         }
@@ -400,7 +404,7 @@
             background-color: #60bf88;
         }
 
-        #getAnswersBtn:disabled {
+        #getAnswersBtn:disabled, #screenshotBtn:disabled {
             background-color: #95a5a6;
             cursor: not-allowed;
         }
@@ -479,9 +483,14 @@
             <label for="lengthInSec" title="Transcribe these many seconds of audio at once">Audio Chunk Length:</label>
             <input type="number" id="lengthInSec" min="1" max="30" value="7">
         </div>
+        <div class="input-group">
+            <label for="delayInput" title="Take screenshot of the whole Screen after these many seconds">Screenshot Delay</label>
+            <input type="number" id="delayInput" placeholder="Screenshot delay (seconds)" min="2" max="9" value="3">
+        </div>
     </div>
     <div class="button-container">
         <div class="button-group">
+            <button id="screenshotBtn">Take Screenshot</button>
             <button id="startBtn">Start</button>
             <button id="stopBtn" disabled>Stop</button>
             <button id="downloadBtn">Download Transcription</button>
@@ -489,17 +498,17 @@
         </div>
         <div class="answers-group">
             <div class="input-group">
-                <label for="kAnswerHistory" title="Previous Que-Ans messages history to use as context">Prev Ans Context:</label>
+                
                 <input type="number" id="kAnswerHistory" min="0" max="5" value="0" title="Previous Que-Ans messages history to use as context">
             </div>
-            <button id="getAnswersBtn">Get Answers</button>
+            <button id="getAnswersBtn">Get Transcription Answers</button>
             <div id="spinner" class="spinner" style="display: none;"></div>
         </div>
     </div>
     <div class="container">
         <div class="panel">
             <div class="panel-header">Write Question and Press Enter</div>
-            <textarea id="customInput" rows="5" placeholder="Shift + Enter for new line..."></textarea>
+            <textarea id="customQuery" rows="5" placeholder="Shift + Enter for new line..."></textarea>
         </div>
         <div class="panel">
             <div class="panel-header">Transcription</div>
@@ -582,7 +591,7 @@
         async function updateSystemPrompt() {
             const newPrompt = systemPrompt.value;
             try {
-                const response = await fetch('/update_system_prompt', {
+                const response = await fetch('/update-system-prompt', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -627,7 +636,7 @@
         document.getElementById('lengthInSec').addEventListener('change', async (e) => {
             const lengthInSec = parseInt(e.target.value);
             try {
-                const response = await fetch('/update_length_in_sec', {
+                const response = await fetch('/update-length-in-sec', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -641,6 +650,50 @@
                 console.error('Error updating length in seconds:', error);
             }
         });
+
+        async function handleScreenshot() {
+            const screenshotDelay = parseInt(document.getElementById('delayInput').value) || 0;
+            const customQueryInput = document.getElementById('customQuery');
+            const screenshotButton = document.getElementById('screenshotBtn');
+            
+            try {
+                // Disable button while processing
+                screenshotButton.disabled = true;
+                
+                const response = await fetch('/take-process-screenshot', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ screenshotDelay })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Handle successful OCR result
+                if (data.text && data.text.length > 10) {
+                    customQueryInput.value = data.text;
+                } else {
+                    console.log('No significant text found in screenshot.');
+                }
+                
+            } catch (error) {
+                console.error('Screenshot processing failed:', error);
+            } finally {
+                screenshotButton.disabled = false;
+            }
+        }
+
+        // Add event listener to button
+        document.getElementById('screenshotBtn').addEventListener('click', handleScreenshot);
 
 
         downloadBtn.addEventListener('click', () => {
@@ -696,12 +749,12 @@
             };
         }
 
-        // Add this in the script section
-        const customInput = document.getElementById('customInput');
-        customInput.addEventListener('keydown', async (e) => {
+
+        const customQuery = document.getElementById('customQuery');
+        customQuery.addEventListener('keydown', async (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    const inputText = customInput.value.trim();
+                    const inputText = customQuery.value.trim();
                     
                     // Check if input is not empty and different from previous input
                     if (inputText) {
@@ -710,7 +763,7 @@
                         getAnswersBtn.disabled = true;
 
                         try {
-                            const response = await fetch('/get_answers', {
+                            const response = await fetch('/get-answers', {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
@@ -725,9 +778,6 @@
                             if (response.ok) {
                                 const data = await response.json();
                                 let markdown = data.markdown;
-                                
-                                // Process equations
-                                markdown = processEquations(markdown);
                                 
                                 // Convert Markdown to HTML
                                 let htmlAnswer = marked.parse(markdown);
@@ -746,7 +796,7 @@
                                 });
 
                                 // Clear custom input
-                                customInput.value = '';
+                                customQuery.value = '';
                             } else {
                                 console.error('Error fetching answers');
                             }
@@ -1076,11 +1126,6 @@
             }
         });
 
-        function processEquations(text) {
-            // Replace [equation] with $$equation$$
-            return text.replace(/\[([\s\S]*?)\]/g, (match, p1) => `$$${p1}$$`);
-        }
-
         getAnswersBtn.addEventListener('click', async () => {
             spinner.style.display = 'inline-block';
             getAnswersBtn.disabled = true;
@@ -1120,9 +1165,6 @@
                 if (response.ok) {
                     const data = await response.json();
                     let markdown = data.markdown;
-                    
-                    // Process equations
-                    markdown = processEquations(markdown);
                     
                     // Convert Markdown to HTML
                     let htmlAnswer = marked.parse(markdown);
