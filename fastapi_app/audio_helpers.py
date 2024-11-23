@@ -99,7 +99,6 @@ class Transcription:
         self.all_latency.append(time.time() - start)
         return res
 
-
 # ---- Speaker Diarization ---- Can't be Done for Live audio
 
 

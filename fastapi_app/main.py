@@ -1,19 +1,15 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from typing import List
-import asyncio
+from typing import List, Optional
 from concurrent.futures import ThreadPoolExecutor
-import pyaudio
 import numpy as np
-import logging
 from pydantic import BaseModel
-from helpers import Transcription, remove_blacklisted_words, diarize
+from audio_helpers import Transcription, remove_blacklisted_words, diarize
 from llm_helper import OpenAILLM
-import json
-import aiohttp
+from image_helpers import take_delayed_screenshot, crop_image, send_to_ocr
+import aiohttp, requests, time, json, logging, pyaudio, asyncio
 from base64 import b64encode
-import time
 
 
 logging.basicConfig(level=logging.WARN)
@@ -24,21 +20,29 @@ app = FastAPI()
 LLM = OpenAILLM()
 TRNS = Transcription()
 
+# ---- Configs -------
 with open('config.json') as config_file:
     config = json.load(config_file)
 
-# Audio settings
 STEP_IN_SEC: int = 1
 LENGTH_IN_SEC = config['audio']['length_in_sec']
 RATE = config['audio']['rate']
 NB_CHANNELS = config['audio']['num_channels']
 NUM_SPEAKERS = config['transcription']['num_speakers']
 CHUNK_SIZE = RATE * LENGTH_IN_SEC
-API_ENDPOINT = config["transcription"]["API_ENDPOINT"]
+BASE_CLOUD_API = config["transcription"]["CLOUD_API_ENDPOINT"].rstrip("/")
+
+TRANSCRIBE_API_ENDPOINT = None
+OCR_API_ENDPOINT = None
 
 
-if API_ENDPOINT: API_ENDPOINT = API_ENDPOINT.rstrip("/") + "/transcribe"
-else: TRNS.load_pipeline() # Don't use cloud 
+if BASE_CLOUD_API and requests.get(BASE_CLOUD_API + "/health").status_code == 200:
+    TRANSCRIBE_API_ENDPOINT = BASE_CLOUD_API + "/transcribe"
+    OCR_API_ENDPOINT = BASE_CLOUD_API + "/ocr"
+else:
+    logger.error(f"Cloud API: `{BASE_CLOUD_API}/health` not running. Falling back to local")
+    TRNS.load_pipeline() # Don't use cloud 
+    # Add code for local OCR later TO-DO
 
 
 LLM.system_prompt = config["llm"]['system_prompt']
@@ -54,24 +58,133 @@ client_audio_buffer = asyncio.Queue(maxsize = CHUNK_SIZE)
 
 thread_pool = ThreadPoolExecutor(max_workers=1)
 
+#  ---------- General usecases -------
+async def status_check():
+    while True:
+        logger.info(f"Task status - START: {START.is_set()}, Server Buffer size: {audio_buffer.qsize()}, Client Buffer size: {client_audio_buffer.qsize()}")
+        await asyncio.sleep(10)
+
+@app.on_event("startup")
+async def startup_event():
+    # asyncio.create_task(status_check())
+    pass
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    active_connections.add(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except:
+        active_connections.remove(websocket)
+
+
+# Base Config to set for Frontend
+@app.get("/base-config")
+async def get_config():
+    return JSONResponse(content=config)
+
+# ---- LLM End Points ----
 
 class PreviousAnswersHistory(BaseModel):
     prev_transcriptions: List[str]
     prev_answers: List[str]
+
+class SystemPrompt(BaseModel):
+    system_prompt: str
 
 class TranscriptionRequest(BaseModel):
     transcription: List[str]
     previous_answers_history: PreviousAnswersHistory
     k_answer_history: int
 
-class TranscriptionConfig(BaseModel):
-    numSpeakers: int
 
+@app.post("/openai-login")
+async def login(request: dict):
+    api_key = request.get("api_key")
+    try:
+        LLM.login_and_create_client(api_key)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
+
+@app.post("/update-system-prompt")
+async def update_system_prompt(prompt: SystemPrompt):
+    try:
+        LLM.system_prompt = prompt.system_prompt
+        return {"message": "System prompt updated successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
+@app.post("/get-answers")
+async def get_answers(request: TranscriptionRequest):
+    """
+    Error Handling, Proper history usage remaining
+    """
+    try:
+        transcription_history = str(request.transcription) # We need to properly format it
+        previous_answers_history = request.previous_answers_history # Add functionality to use it in calls, if needed
+        k_answer_history = request.k_answer_history # No of previous messages to use as answer history
+        
+        logger.info(f"Current Transcription History: {transcription_history}")
+        logger.info(f"Previous Answers History: {previous_answers_history}")
+        logger.info(f"K History: {k_answer_history}")
+
+        markdown_content = LLM.hit_llm(transcription_history)
+        
+        return JSONResponse(content={"markdown": markdown_content})
+    except Exception as e:
+        logger.error(f"Error in get-answer: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ----------- Image & Screenshot Endpoint ------------
+
+class ScreenshotRequest(BaseModel):
+    screenshotDelay: int = 2
+
+class OCRResponse(BaseModel):
+    text: Optional[str] = None
+    error: Optional[str] = None
+
+
+@app.post("/take-process-screenshot")
+async def process_screenshot(request: ScreenshotRequest):
+    try:
+        logger.info(f"Taking screenshot with delay: {request.screenshotDelay}s")
+        screenshot = await take_delayed_screenshot(request.screenshotDelay)
+        
+        logger.info("Cropping screenshot")
+        cropped_bytes = await crop_image(screenshot)
+
+        logger.info("Sending to OCR service")
+        ocr_result = await send_to_ocr(cropped_bytes, OCR_API_ENDPOINT)
+        
+        return OCRResponse(text=ocr_result.get('text'))
+        
+    except HTTPException as http_ex:
+        logger.error(f"HTTP error occurred: {http_ex.detail}")
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}")
+        return OCRResponse(error=str(e))
+    
+    
+# -----------  Audio and transcriptions --------------
 class LengthInSecConfig(BaseModel):
     lengthInSec: int
 
-class SystemPrompt(BaseModel):
-    system_prompt: str
+
+class TranscriptionConfig(BaseModel):
+    numSpeakers: int
+
+
+async def send_transcription(transcription: str):
+    for connection in active_connections:
+        await connection.send_text(transcription)
 
 
 async def send_audio_to_cloud(audio_data: bytes) -> dict:
@@ -84,7 +197,7 @@ async def send_audio_to_cloud(audio_data: bytes) -> dict:
     async with aiohttp.ClientSession() as session:
         try:
             async with session.post(
-                API_ENDPOINT,  # API_ENDPOINT should be defined at module level
+                TRANSCRIBE_API_ENDPOINT,  # API_ENDPOINT should be defined at module level
                 json={'audio_data': audio_base64}
             ) as response:
                 if response.status == 200:
@@ -96,69 +209,12 @@ async def send_audio_to_cloud(audio_data: bytes) -> dict:
             raise
 
 
-# Base Config to set for Frontend
-@app.get("/base-config")
-async def get_config():
-    return JSONResponse(content=config)
-
-# ---- LLM End Points ----
-@app.post("/openai-login")
-async def login(request: dict):
-    api_key = request.get("api_key")
-    try:
-        LLM.login_and_create_client(api_key)
-        return {"status": "success"}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    
-
-@app.post("/update_system_prompt")
-async def update_system_prompt(prompt: SystemPrompt):
-    try:
-        LLM.system_prompt = prompt.system_prompt
-        return {"message": "System prompt updated successfully"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    
-
-@app.post("/get_answers")
-async def get_answers(request: TranscriptionRequest):
-    """
-    Error Handling, Proper history usage remaining
-    """
-    transcription_history = str(request.transcription) # We need to properly format it
-    previous_answers_history = request.previous_answers_history # Add functionality to use it in calls, if needed
-    k_answer_history = request.k_answer_history # No of previous messages to use as answer history
-    
-    logger.info(f"Current Transcription History: {transcription_history}")
-    logger.info(f"Previous Answers History: {previous_answers_history}")
-    logger.info(f"K History: {k_answer_history}")
-
-    markdown_content = LLM.hit_llm(transcription_history)
-    
-    return JSONResponse(content={"markdown": markdown_content})
-
-
-@app.post("/update_length_in_sec")
+@app.post("/update-length-in-sec")
 async def update_length_in_sec(config: LengthInSecConfig):
     global LENGTH_IN_SEC, RATE, CHUNK_SIZE
     LENGTH_IN_SEC = config.lengthInSec
     CHUNK_SIZE = RATE * LENGTH_IN_SEC
     return {"status": "updated", "lengthInSec": LENGTH_IN_SEC}
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    active_connections.add(websocket)
-    try:
-        while True:
-            await websocket.receive_text()
-    except:
-        active_connections.remove(websocket)
-
-async def send_transcription(transcription: str):
-    for connection in active_connections:
-        await connection.send_text(transcription)
 
 
 async def producer_task():
@@ -192,7 +248,7 @@ async def consumer_task():
             if audio_buffer.qsize() >= LENGTH_IN_SEC:
                 audio_data_to_process = b''.join([await audio_buffer.get() for _ in range(LENGTH_IN_SEC)])
                 
-                if API_ENDPOINT is not None:  # Send audio data to cloud API
+                if TRANSCRIBE_API_ENDPOINT is not None:  # Send audio data to cloud API
                     try:
                         start = time.time()
                         transcription = await send_audio_to_cloud(audio_data_to_process)
@@ -331,14 +387,5 @@ async def stop_client_transcription():
     return {"status": "stopped"}
 
 
-# ------ Common Functions  --------
-async def status_check():
-    while True:
-        logger.info(f"Task status - START: {START.is_set()}, Server Buffer size: {audio_buffer.qsize()}, Client Buffer size: {client_audio_buffer.qsize()}")
-        await asyncio.sleep(10)
-
-@app.on_event("startup")
-async def startup_event():
-    asyncio.create_task(status_check())
-
+# ------ Frontend Page  --------
 app.mount("/", StaticFiles(directory="static", html=True), name="static")

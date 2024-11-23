@@ -1,9 +1,11 @@
+accelerate>=0.26.0
 fastapi==0.115.2
 numpy==1.26.4
 openai==1.47.1
 PyAudio==0.2.14
 pydantic==2.5.0
 pydantic_core==2.14.1
+PyAutoGUI==0.9.54
 tiktoken==0.7.0
 torch==2.5.0
 torchaudio==2.5.0

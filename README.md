@@ -10,6 +10,8 @@ https://github.com/user-attachments/assets/aa053824-b0c3-46b8-9ca5-8067e8b85482
 
 ## Functionalities
 - [x] *Free COLAB* GPU support OR On device Real Time Transcription using HF pipeline (uses`whisper-large-v3-turbo`) so you can use any any valid transcription model
+- [x] Dedicated input for zero effort typing and getting answers in minimum words
+- [x] Single Click Delayed  Screenshot + OCR of your screen. OCR Text becomes part of above box (useful for live coding)
 - [x] Double click on any transcription to edit it
 - [x] Option to select 0 or more transcription texts. Use `Shift + Click` to select messages from Text-A till Text-B
 - [x] Smoothly renders `LaTex` equations and Markdown (Heading, subheading, Lists etc). Click on `Answers` panel to open a bigger popup
