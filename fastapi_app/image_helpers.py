@@ -6,8 +6,8 @@ import aiohttp
 import pyautogui
 import asyncio
 import base64
-
-
+import pytesseract
+  
 async def take_delayed_screenshot(delay: int) -> Image.Image:
     """Takes a screenshot after specified delay"""
     if delay > 0:
@@ -31,18 +31,25 @@ async def crop_image(image: Image.Image, percent_each_side:int = 5) -> bytes:
     bottom = int(height * (1-num))
     
     cropped = image.crop((left, top, right, bottom))
-    
+    return cropped
+
+
+async def tesseract_local_ocr(cropped_image):
+    """
+    Run tesseract in local
+    """
+    ocr_text = await asyncio.to_thread(pytesseract.image_to_string, cropped_image)
+    return {"text": ocr_text}
+
+async def send_to_ocr(cropped_image, ocr_url: str) -> dict:
+    """
+    Sends cropped image to OCR service
+    """
     img_byte_arr = io.BytesIO()
-    cropped.save(img_byte_arr, format='PNG')
+    cropped_image.save(img_byte_arr, format='PNG')
     img_byte_arr.seek(0)
+    image_bytes = img_byte_arr.getvalue()
 
-    return img_byte_arr.getvalue()
-
-
-async def send_to_ocr(image_bytes: bytes, ocr_url: str) -> dict:
-    """
-    Sends image to OCR service
-    """
     base64_str = base64.b64encode(image_bytes).decode('utf-8')
     
     async with aiohttp.ClientSession() as session:

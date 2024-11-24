@@ -7,7 +7,7 @@ import numpy as np
 from pydantic import BaseModel
 from audio_helpers import Transcription, remove_blacklisted_words, diarize
 from llm_helper import OpenAILLM
-from image_helpers import take_delayed_screenshot, crop_image, send_to_ocr
+from image_helpers import take_delayed_screenshot, crop_image, send_to_ocr, tesseract_local_ocr
 import aiohttp, requests, time, json, logging, pyaudio, asyncio
 from base64 import b64encode
 
@@ -30,19 +30,22 @@ RATE = config['audio']['rate']
 NB_CHANNELS = config['audio']['num_channels']
 NUM_SPEAKERS = config['transcription']['num_speakers']
 CHUNK_SIZE = RATE * LENGTH_IN_SEC
-BASE_CLOUD_API = config["transcription"]["CLOUD_API_ENDPOINT"].rstrip("/")
-
-TRANSCRIBE_API_ENDPOINT = None
-OCR_API_ENDPOINT = None
 
 
-if BASE_CLOUD_API and requests.get(BASE_CLOUD_API + "/health").status_code == 200:
-    TRANSCRIBE_API_ENDPOINT = BASE_CLOUD_API + "/transcribe"
-    OCR_API_ENDPOINT = BASE_CLOUD_API + "/ocr"
+TRANSCRIBE_API_ENDPOINT = config["CLOUD_APIS"]["TRANSCRIPTION_API_ENDPOINT"].rstrip("/").strip()
+OCR_API_ENDPOINT = config["CLOUD_APIS"]["OCR_API_ENDPOINT"].rstrip("/").strip()
+
+
+if TRANSCRIBE_API_ENDPOINT and requests.get(TRANSCRIBE_API_ENDPOINT + "/health").status_code == 200:
+    TRANSCRIBE_API_ENDPOINT = TRANSCRIBE_API_ENDPOINT + "/transcribe"
 else:
-    logger.error(f"Cloud API: `{BASE_CLOUD_API}/health` not running. Falling back to local")
-    TRNS.load_pipeline() # Don't use cloud 
-    # Add code for local OCR later TO-DO
+    logger.error(f"Transcription API: `{TRANSCRIBE_API_ENDPOINT}/health` not running. Falling back to local")
+    # TRNS.load_pipeline() # Use Local Implementation
+
+if OCR_API_ENDPOINT and requests.get(OCR_API_ENDPOINT + "/health").status_code == 200:
+    OCR_API_ENDPOINT = OCR_API_ENDPOINT + "/OCR"
+else:
+    logger.error(f"OCR API: `{OCR_API_ENDPOINT}/health` not running. Falling back to `tesseract` local")
 
 
 LLM.system_prompt = config["llm"]['system_prompt']
@@ -158,10 +161,15 @@ async def process_screenshot(request: ScreenshotRequest):
         screenshot = await take_delayed_screenshot(request.screenshotDelay)
         
         logger.info("Cropping screenshot")
-        cropped_bytes = await crop_image(screenshot)
+        cropped_image = await crop_image(screenshot)
 
         logger.info("Sending to OCR service")
-        ocr_result = await send_to_ocr(cropped_bytes, OCR_API_ENDPOINT)
+
+        if OCR_API_ENDPOINT:
+            ocr_result = await send_to_ocr(cropped_image, OCR_API_ENDPOINT)
+        else:
+            ocr_result = await tesseract_local_ocr(cropped_image)
+            
         
         return OCRResponse(text=ocr_result.get('text'))
         

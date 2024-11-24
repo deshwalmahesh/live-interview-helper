@@ -23,10 +23,11 @@ https://github.com/user-attachments/assets/aa053824-b0c3-46b8-9ca5-8067e8b85482
 
 1. It is tested on `Python 3.12` so install that first
 2. Install [`PyAudio`](https://pypi.org/project/PyAudio/) for your system (it is tested on Mac so should work for linux too. Not sure about Windows)
-3. Get you [OpenAI API Key](https://medium.com/@lorenzozar/how-to-get-your-own-openai-api-key-f4d44e60c327)
-4. Clone this repo or download the zip file
-5. Open Terminal and navigate to the location which contains `requirements.txt`
-6. Install requirements using `pip install -r requirements.txt`
+3. For local OCR using `pytesseract` **(Recommended)**, install [Tesseract Engine](https://tesseract-ocr.github.io/tessdoc/Installation.html)
+4. Get you [OpenAI API Key](https://medium.com/@lorenzozar/how-to-get-your-own-openai-api-key-f4d44e60c327)
+5. Clone this repo or download the zip file
+6. Open Terminal and navigate to the location which contains `requirements.txt`
+7. Install requirements using `pip install -r requirements.txt`
 
 ## What if you don't have GPU?
 1. Upload `Colab_Transcription.ipynb` to Colab
