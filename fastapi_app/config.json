@@ -14,7 +14,11 @@
     },
 
     "transcription": {
-      "num_speakers": 1,
-      "CLOUD_API_ENDPOINT": "https://59c0-34-169-92-72.ngrok-free.app"
+      "num_speakers": 1
+    },
+    
+    "CLOUD_APIS": {
+      "TRANSCRIPTION_API_ENDPOINT": "https://e7f3-34-72-73-211.ngrok-free.app", 
+      "OCR_API_ENDPOINT": ""
     }
   }

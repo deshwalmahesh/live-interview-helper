@@ -6,6 +6,7 @@ PyAudio==0.2.14
 pydantic==2.5.0
 pydantic_core==2.14.1
 PyAutoGUI==0.9.54
+pytesseract==0.3.13
 tiktoken==0.7.0
 torch==2.5.0
 torchaudio==2.5.0
