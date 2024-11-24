@@ -40,7 +40,7 @@ if TRANSCRIBE_API_ENDPOINT and requests.get(TRANSCRIBE_API_ENDPOINT + "/health")
     TRANSCRIBE_API_ENDPOINT = TRANSCRIBE_API_ENDPOINT + "/transcribe"
 else:
     logger.error(f"Transcription API: `{TRANSCRIBE_API_ENDPOINT}/health` not running. Falling back to local")
-    # TRNS.load_pipeline() # Use Local Implementation
+    TRNS.load_pipeline() # Use Local Implementation
 
 if OCR_API_ENDPOINT and requests.get(OCR_API_ENDPOINT + "/health").status_code == 200:
     OCR_API_ENDPOINT = OCR_API_ENDPOINT + "/OCR"
@@ -62,16 +62,6 @@ client_audio_buffer = asyncio.Queue(maxsize = CHUNK_SIZE)
 thread_pool = ThreadPoolExecutor(max_workers=1)
 
 #  ---------- General usecases -------
-async def status_check():
-    while True:
-        logger.info(f"Task status - START: {START.is_set()}, Server Buffer size: {audio_buffer.qsize()}, Client Buffer size: {client_audio_buffer.qsize()}")
-        await asyncio.sleep(10)
-
-@app.on_event("startup")
-async def startup_event():
-    # asyncio.create_task(status_check())
-    pass
-
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
