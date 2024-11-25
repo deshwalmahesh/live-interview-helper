@@ -792,11 +792,8 @@
                                 
                                 // Tell MathJax to render the math
                                 MathJax.typesetPromise([answersDiv]).then(() => {
-                                    // MathJax rendering is complete
                                 });
 
-                                // Clear custom input
-                                customQuery.value = '';
                             } else {
                                 console.error('Error fetching answers');
                             }
