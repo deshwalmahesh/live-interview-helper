@@ -5,7 +5,7 @@
 *.np
 *.pt
 *.bin
-#*__pycache__/*
+*__pycache__/*
 # *.ipynb
 *.cpython
 *.pyc
