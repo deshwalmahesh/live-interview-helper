@@ -109,7 +109,7 @@
         .input-container {
             display: flex;
             justify-content: center;
-            gap: 20px;
+            gap: 15px;
             margin-bottom: 20px;
             width: 100%;
             max-width: 1200px;
@@ -119,6 +119,11 @@
             display: flex;
             align-items: center;
             gap: 10px;
+        }
+
+        .input-group input[type="checkbox"] {
+            transform: scale(2); /* Makes the checkbox 1.5 times larger */
+            cursor: pointer; /* Adds a pointer cursor for better UX */
         }
 
         .input-group label {
@@ -133,6 +138,16 @@
             border-radius: 5px;
             font-size: 16px;
         }
+
+        .input-group::after {
+            content: ''; /* Creates a visual line */
+            display: inline-block;
+            width: 2px; /* Thickness of the line */
+            height: 40px; /* Height of the line */
+            background-color: #2c3e50; /* Line color */
+            margin-left: 10px; /* Spacing between the group and the line */
+        }
+
 
         .button-container {
             display: flex;
@@ -212,6 +227,7 @@
             margin-bottom: 2%;
             white-space: pre-wrap;
             overflow-y: auto;
+            overflow-x: auto;
             background-color: white;
             border-radius: 0 0 5px 5px;
             line-height: 1.4;
@@ -475,6 +491,10 @@
     </div>
     <h1 id="modeHeading">Backend Side (Mic + Speaker) Transcription</h1>
     <div class="input-container">
+        <div class="input-group">   
+            <input type="checkbox" id="useRAG" name="useRAG">
+            <label for="useRAG">Use Python Leetcode RAG</label>
+        </div>
         <div class="input-group">
             <label for="openaiKey">OpenAI Key:</label>
             <input type="password" id="openaiKey">
@@ -498,7 +518,7 @@
         </div>
         <div class="answers-group">
             <div class="input-group">
-                
+                <label for="kAnswerHistory">Previous Q-A history to use</label>
                 <input type="number" id="kAnswerHistory" min="0" max="5" value="0" title="Previous Que-Ans messages history to use as context">
             </div>
             <button id="getAnswersBtn">Get Transcription Answers</button>
@@ -771,7 +791,8 @@
                                 body: JSON.stringify({
                                     transcription: [inputText],
                                     previous_answers_history: prevAnswersHistory,
-                                    k_answer_history: parseInt(document.getElementById('kAnswerHistory').value)
+                                    k_answer_history: parseInt(document.getElementById('kAnswerHistory').value),
+                                    use_rag: document.getElementById('useRAG').checked
                                 }),
                             });
 
@@ -792,11 +813,8 @@
                                 
                                 // Tell MathJax to render the math
                                 MathJax.typesetPromise([answersDiv]).then(() => {
-                                    // MathJax rendering is complete
                                 });
 
-                                // Clear custom input
-                                customQuery.value = '';
                             } else {
                                 console.error('Error fetching answers');
                             }
@@ -1150,7 +1168,7 @@
             const kAnswerHistory = parseInt(document.getElementById('kAnswerHistory').value);
 
             try {
-                const response = await fetch('/get_answers', {
+                const response = await fetch('/get-answers', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1158,7 +1176,8 @@
                     body: JSON.stringify({
                         transcription: messagesToSend,
                         previous_answers_history: prevAnswersHistory,
-                        k_answer_history: kAnswerHistory
+                        k_answer_history: kAnswerHistory,
+                        use_rag: document.getElementById('useRAG').checked
                     }),
                 });
 
