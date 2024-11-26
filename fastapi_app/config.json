@@ -18,7 +18,8 @@
     },
     
     "CLOUD_APIS": {
-      "TRANSCRIPTION_API_ENDPOINT": "https://e7f3-34-72-73-211.ngrok-free.app", 
+      "TRANSCRIPTION_API_ENDPOINT": "https://75ed-34-125-34-134.ngrok-free.app", 
+      "PYTHON_LEETCODE_RAG_ENDPOINT": "https://75ed-34-125-34-134.ngrok-free.app",
       "OCR_API_ENDPOINT": ""
     }
   }

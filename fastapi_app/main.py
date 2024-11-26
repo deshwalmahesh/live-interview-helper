@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 from pydantic import BaseModel
 from audio_helpers import Transcription, remove_blacklisted_words, diarize
-from llm_helper import OpenAILLM
+from text_llm_helper import OpenAILLM, get_rag
 from image_helpers import take_delayed_screenshot, crop_image, send_to_ocr, tesseract_local_ocr
 import aiohttp, requests, time, json, logging, pyaudio, asyncio
 from base64 import b64encode
@@ -34,6 +34,7 @@ CHUNK_SIZE = RATE * LENGTH_IN_SEC
 
 TRANSCRIBE_API_ENDPOINT = config["CLOUD_APIS"]["TRANSCRIPTION_API_ENDPOINT"].rstrip("/").strip()
 OCR_API_ENDPOINT = config["CLOUD_APIS"]["OCR_API_ENDPOINT"].rstrip("/").strip()
+PYTHON_LEETCODE_RAG_ENDPOINT = config["CLOUD_APIS"]["PYTHON_LEETCODE_RAG_ENDPOINT"].rstrip("/").strip()
 
 
 if TRANSCRIBE_API_ENDPOINT and requests.get(TRANSCRIBE_API_ENDPOINT + "/health").status_code == 200:
@@ -46,6 +47,11 @@ if OCR_API_ENDPOINT and requests.get(OCR_API_ENDPOINT + "/health").status_code =
     OCR_API_ENDPOINT = OCR_API_ENDPOINT + "/OCR"
 else:
     logger.error(f"OCR API: `{OCR_API_ENDPOINT}/health` not running. Falling back to `tesseract` local")
+
+if PYTHON_LEETCODE_RAG_ENDPOINT and requests.get(PYTHON_LEETCODE_RAG_ENDPOINT + "/health").status_code == 200:
+    PYTHON_LEETCODE_RAG_ENDPOINT = PYTHON_LEETCODE_RAG_ENDPOINT + "/python-leetcode-RAG"
+else:
+    logger.error(f"Cloud RAG API: `{PYTHON_LEETCODE_RAG_ENDPOINT}/health` not running. Won't use context")
 
 
 LLM.system_prompt = config["llm"]['system_prompt']
@@ -87,10 +93,11 @@ class PreviousAnswersHistory(BaseModel):
 class SystemPrompt(BaseModel):
     system_prompt: str
 
-class TranscriptionRequest(BaseModel):
+class LLMAnswerRequest(BaseModel):
     transcription: List[str]
     previous_answers_history: PreviousAnswersHistory
     k_answer_history: int
+    use_rag : Optional[bool] = False
 
 
 @app.post("/openai-login")
@@ -113,7 +120,7 @@ async def update_system_prompt(prompt: SystemPrompt):
     
 
 @app.post("/get-answers")
-async def get_answers(request: TranscriptionRequest):
+async def get_answers(request: LLMAnswerRequest):
     """
     Error Handling, Proper history usage remaining
     """
@@ -125,6 +132,17 @@ async def get_answers(request: TranscriptionRequest):
         logger.info(f"Current Transcription History: {transcription_history}")
         logger.info(f"Previous Answers History: {previous_answers_history}")
         logger.info(f"K History: {k_answer_history}")
+
+        if PYTHON_LEETCODE_RAG_ENDPOINT:
+            if request.use_rag:
+                try:
+                    rag_response = await get_rag(transcription_history, PYTHON_LEETCODE_RAG_ENDPOINT)
+                    rag_text = rag_response.get("text")
+                    logging.info(f"RAG Results: {rag_text}")
+                    if rag_text:
+                        transcription_history = f"""#Query:\n{transcription_history}\n\n{rag_text}"""
+                except HTTPException as rag_error:
+                    logger.error(f"RAG Error: {rag_error.detail}") # use original transcription without RAG
 
         markdown_content = LLM.hit_llm(transcription_history)
         

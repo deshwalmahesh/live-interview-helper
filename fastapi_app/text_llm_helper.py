@@ -1,4 +1,6 @@
 from openai import OpenAI
+import aiohttp
+from fastapi import HTTPException
 
 class OpenAILLM():
     def __init__(self, model_name = "gpt-4o"):
@@ -18,6 +20,9 @@ class OpenAILLM():
 
 
     def hit_llm(self, msg):
+        """
+        TO-DO: Add async support. find ways
+        """
         messages=[
         {"role": "system", "content": self.system_prompt},
         {"role": "user", "content": msg}]
@@ -28,3 +33,18 @@ class OpenAILLM():
         self.history["prev_answers"].append(result)
 
         return result
+    
+
+async def get_rag(query: str, rag_url:str) -> dict:
+    """
+    Sends query to RAG for context
+    """
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.post(rag_url, json={'query': query}, timeout=20) as response:
+                if response.status != 200:
+                    raise HTTPException(status_code=response.status, detail=f"RAG service returned status {response.status}")
+                return await response.json()
+        
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error in getting RAG: {str(e)}")
