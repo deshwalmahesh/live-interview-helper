@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?version=4.8.0&features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TEST</title>
+    <link rel="icon" type="image/x-icon" href="/icon.png">
+    <link rel="icon" href="data:,">
+    <style>
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4%;
+            background-color: #87badc;
+            transition: width 0.2s ease;
+            overflow: hidden;
+            z-index: 1000;
+        }
+
+        .sidebar.expanded {
+            width: 15%;
+        }
+
+        .hamburger {
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .hamburger span {
+            display: block;
+            width: 30px;
+            height: 3px;
+            margin-bottom: 5px;
+            position: relative;
+            background: #333;
+            border-radius: 3px;
+            z-index: 1;
+            transform-origin: 4px 0px;
+            transition: transform 0.5s cubic-bezier(0.77,0.2,0.05,1.0), 
+            background 0.5s cubic-bezier(0.77,0.2,0.05,1.0),
+            opacity 0.55s ease;
+        }
+
+        .sidebar-content {
+            padding: 20px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            margin: 5px;
+        }
+
+        .sidebar.expanded .sidebar-content {
+            opacity: 1;
+        }
+
+        .sidebar button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .sidebar button:hover:not(.active) {
+            background-color: #2980b9;
+        }
+
+        .sidebar button.active {
+            background-color: #2ecc71;
+            cursor: default;
+        }
+
+        #systemPrompt {
+            width: 100%;
+            resize: vertical;
+            margin-top: 10px;
+            padding-top: 10px;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background-color: #f0f0f0;
+            color: #333;
+            margin: 0;
+            margin-left: 50px;
+        }
+
+        body.sidebar-expanded {
+            margin-left: 300px;
+        }
+
+        h1 {
+            margin-bottom: 30px;
+            color: #2c3e50;
+        }
+
+        .input-container {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        .input-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .input-group input[type="checkbox"] {
+            transform: scale(2); /* Makes the checkbox 1.5 times larger */
+            cursor: pointer; /* Adds a pointer cursor for better UX */
+        }
+
+        .input-group label {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .input-group input {
+            width: 60px;
+            padding: 5px;
+            border: 1px solid #3498db;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        .input-group::after {
+            content: ''; /* Creates a visual line */
+            display: inline-block;
+            width: 2px; /* Thickness of the line */
+            height: 40px; /* Height of the line */
+            background-color: #2c3e50; /* Line color */
+            margin-left: 10px; /* Spacing between the group and the line */
+        }
+
+        .container {
+            margin-top: 20px;
+            display: flex;
+            width: 90%;
+            gap: 20px;
+            height: 650px; /* Fixed height */
+        }
+
+
+        .panel {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel:first-child {
+            flex: 1;
+        }
+
+        .panel:nth-child(2) {
+            flex: 2;
+        }
+
+        .panel:last-child {
+            flex: 3;
+        }
+
+        .panel-header {
+            background-color: #3498db;
+            color: white;
+            padding: 10px;
+            border-radius: 5px 5px 0 0;
+            font-weight: bold;
+        }
+
+        #customQuery {
+            width: 94%;
+            max-width: 94%;
+            height: 80%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            margin-bottom: 10px;
+        }
+
+
+        #answers {
+            height: 100%;
+            max-width: 97%;
+            border: 1px solid #ccc;
+            border-top: none;
+            padding: 1% 2%;
+            margin-bottom: 2%;
+            white-space: pre-wrap;
+            overflow-y: auto;
+            overflow-x: auto;
+            background-color: white;
+            border-radius: 0 0 5px 5px;
+            line-height: 1.4;
+            font-family: Arial, sans-serif;
+            font-size: 17px;
+        }
+
+        #answers ul, #answers ol {
+            margin: 0.17em 0;
+            padding-left: 1.2em;
+        }
+
+        #answers li, #answers p, #answers h1, #answers h2, #answers h3, #answers h4, #answers h5, #answers h6 {
+            margin-bottom: 0.17em;
+        }
+
+        #answers li > ul, #answers li > ol, #answers h3 > ul, #answers ul > h3 #answers p > ul #answers ul > p {
+            margin-top: 0.11em;
+            margin-bottom: 0.11em;
+        }
+
+        #answers code {
+            background-color: #f0f0f0;
+            padding: 1px 3px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+
+        #answers pre {
+            background-color: #f0f0f0;
+            padding: 0.5em;
+            border-radius: 3px;
+            overflow-x: auto;
+            margin: 0.3em 0;
+        }
+
+        #answers blockquote {
+            border-left: 3px solid #ccc;
+            padding-left: 0.5em;
+            margin: 0.3em 0;
+            color: #666;
+        }
+
+        .answer-popup {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+        }
+
+        .popup-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-height: 80%;
+            overflow-y: auto;
+            line-height: 1.4;
+            font-family: Arial, sans-serif;
+            font-size: 17px;
+        }
+
+        .popup-content ul, .popup-content ol {
+            margin: 0.17em 0;
+            padding-left: 1.2em;
+        }
+
+        .popup-content li, .popup-content p, .popup-content h1, .popup-content h2, .popup-content h3, .popup-content h4, .popup-content h5, .popup-content h6 {
+            margin-bottom: 0.17em;
+        }
+
+        .popup-content li > ul, .popup-content li > ol, .popup-content h3 > ul, .popup-content ul > h3 .popup-content p > ul .popup-content ul > p {
+            margin-top: 0.11em;
+            margin-bottom: 0.11em;
+        }
+
+        .popup-content code {
+            background-color: #f0f0f0;
+            padding: 1px 3px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+
+        .popup-content pre {
+            background-color: #f0f0f0;
+            padding: 0.5em;
+            border-radius: 3px;
+            overflow-x: auto;
+            margin: 0.3em 0;
+        }
+
+        .popup-content blockquote {
+            border-left: 3px solid #ccc;
+            padding-left: 0.5em;
+            margin: 0.3em 0;
+            color: #666;
+        }
+
+        .answers-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .answers-group .input-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .answers-group .input-group input {
+            width: 40px;
+            padding: 5px;
+            border: 1px solid #3498db;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        #spinner {
+            margin-left: 10px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .button-clicked {
+            animation: buttonClick 0.3s ease;
+            background-color: #1e8449; /* Darker green color when clicked */
+        }
+
+
+        .MathJax {
+            overflow-x: auto;
+            overflow-y: hidden;
+            max-width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="hamburger">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+        <div class="sidebar-content">
+            <label for="systemPrompt">System Prompt (Shift + Enter for new line):</label>
+            <textarea id="systemPrompt" rows="25"></textarea>
+        </div>
+    </div>
+    <h1 id="modeHeading">Write Question and Press Enter</h1>
+    <div class="input-container">
+        <div class="input-group">   
+            <input type="checkbox" id="useRAG" name="useRAG">
+            <label for="useRAG">Use Python Leetcode RAG</label>
+        </div>
+        <div class="input-group">
+            <label for="openaiKey">OpenAI Key:</label>
+            <input type="password" id="openaiKey">
+        </div>
+        <div id="spinner" class="spinner" style="display: none;"></div>
+    </div>
+    <div class="container">
+        <div class="panel">
+            <div class="panel-header">Write Questions</div>
+            <textarea id="customQuery" rows="5" placeholder="Use Shift + Enter for new line..."></textarea>
+        </div>
+        <div class="panel">
+            <div class="panel-header">Answers (Click on the text below to open popup)</div>
+            <div id="answers"></div>
+        </div>
+    </div>
+    <script>
+        const answersDiv = document.getElementById('answers');
+        const spinner = document.getElementById('spinner');
+        const sidebar = document.querySelector('.sidebar');
+        const hamburger = document.querySelector('.hamburger');
+        const sidebarContent = document.querySelector('.sidebar-content');
+        const systemPrompt = document.getElementById('systemPrompt');
+        const body = document.body;
+
+        let transcriptionHistory = [];
+        let prevAnswersHistory = { prev_transcriptions: [], prev_answers: [] };
+        let openaiLogin = false;
+        let answerPopup;
+        let popupContent;
+
+        hamburger.addEventListener('click', () => {
+            sidebar.classList.toggle('expanded');
+            body.classList.toggle('sidebar-expanded');
+            if (sidebar.classList.contains('expanded')) {
+                setTimeout(() => {
+                    sidebarContent.style.display = 'block';
+                }, 150);
+            } else {
+                sidebarContent.style.display = 'none';
+            }
+        });
+
+        systemPrompt.addEventListener('blur', updateSystemPrompt);
+        systemPrompt.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                updateSystemPrompt();
+            }
+        });
+
+        async function updateSystemPrompt() {
+            const newPrompt = systemPrompt.value;
+            try {
+                const response = await fetch('/update-system-prompt', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ system_prompt: newPrompt }),
+                });
+                if (!response.ok) {
+                    throw new Error('Failed to update system prompt');
+                }
+                console.log('System prompt updated successfully');
+            } catch (error) {
+                console.error('Error updating system prompt:', error);
+            }
+        }
+
+        document.getElementById('openaiKey').addEventListener('change', async (e) => {
+            const apiKey = e.target.value;
+            try {
+                const response = await fetch('/openai-login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ api_key: apiKey }),
+                });
+                
+                if (response.ok) {
+                    openaiLogin = true;
+             
+                } else {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail);
+                }
+            } catch (error) {
+                openaiLogin = false;
+        
+                alert(`OpenAI login failed: ${error.message}`);
+            }
+        });
+
+
+        const customQuery = document.getElementById('customQuery');
+        customQuery.addEventListener('keydown', async (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    const inputText = customQuery.value.trim();
+                    
+                    // Check if input is not empty and different from previous input
+                    if (inputText) {
+                        // Reuse existing get answers logic
+                        spinner.style.display = 'inline-block';
+                     
+                        try {
+                            const response = await fetch('/get-answers', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    transcription: [inputText],
+                                    previous_answers_history: prevAnswersHistory,
+                                    k_answer_history: 0,
+                                    use_rag: document.getElementById('useRAG').checked
+                                }),
+                            });
+
+                            if (response.ok) {
+                                const data = await response.json();
+                                let markdown = data.markdown;
+                                
+                                // Convert Markdown to HTML
+                                let htmlAnswer = marked.parse(markdown);
+                                answersDiv.innerHTML = htmlAnswer;
+                                
+                                // Update prevAnswersHistory
+                                prevAnswersHistory.prev_transcriptions.push(inputText);
+                                prevAnswersHistory.prev_answers.push(markdown);
+
+                                // Scroll to the top of the answer panel
+                                answersDiv.scrollTop = 0;
+                                
+                                // Tell MathJax to render the math
+                                MathJax.typesetPromise([answersDiv]).then(() => {
+                                });
+
+                            } else {
+                                console.error('Error fetching answers');
+                            }
+                        } catch (error) {
+                            console.error('Error:', error);
+                        } finally {
+                            spinner.style.display = 'none';
+                 
+                        }
+                    }
+                }
+            });  
+
+
+        function clearAllSelections() {
+            const selectedMessages = transcriptionDiv.querySelectorAll('.selected-message');
+            selectedMessages.forEach(msg => msg.classList.remove('selected-message'));
+        }
+
+
+        function resetUI() {
+            transcriptionHistory = [];
+            updateTranscriptionDisplay();
+            answersDiv.innerHTML = '';
+        }
+
+        
+
+        document.addEventListener('DOMContentLoaded', () => {
+            answerPopup = document.getElementById('answerPopup');
+            popupContent = document.getElementById('popupContent');
+            answersDiv.addEventListener('click', showAnswerPopup);
+            answerPopup.addEventListener('click', function(event) {
+                if (event.target === answerPopup) {
+                    answerPopup.style.display = 'none';
+                }
+            });
+        });
+
+
+        function showAnswerPopup() {
+            if (answerPopup && popupContent) {
+                popupContent.innerHTML = answersDiv.innerHTML;
+                answerPopup.style.display = 'block';
+                
+                // Re-run MathJax on the popup content
+                MathJax.typesetPromise([popupContent]).then(() => {
+                    // MathJax rendering is complete
+                });
+            } else {
+                console.error('Popup elements not found');
+            }
+        }
+    </script>
+
+    <div id="answerPopup" class="answer-popup">
+        <div id="popupContent" class="popup-content"></div>
+    </div>
+</body>
+</html>
